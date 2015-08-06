@@ -95,9 +95,9 @@ void graphics_recalc_scale_vector(GraphicsHandle *handle)
 {
     if (!handle->width || !handle->height)
         return;
-    handle->scale_vector[0] = (2.0f/handle->width) * 300; /* *zoom_factor */
-    handle->scale_vector[1] = (2.0f/handle->height) * 300; /* *zoom_factor */
-    handle->scale_vector[2] = 0.001f * 300; /* *zoom_factor */
+    handle->scale_vector[0] = (2.0f/handle->width) * 512; /* *zoom_factor */
+    handle->scale_vector[1] = (2.0f/handle->height) * 512; /* *zoom_factor */
+    handle->scale_vector[2] = 0.001f * 512; /* *zoom_factor */
     handle->scale_vector[3] = 1.0f;
 }
 
@@ -120,6 +120,35 @@ void graphics_cleanup(GraphicsHandle *handle)
     g_free(handle);
 }
 
+void _graphics_render_block(double x, double y, double z, double dx, double dy)
+{
+    glVertex3f(x, y, z);
+    glVertex3f(x + dx, y, z);
+    glVertex3f(x + dx, y + dy, z);
+    glVertex3f(x, y + dy, z);
+
+    /* if draw blocks */
+    glVertex3f(x, y, 0.0);
+    glVertex3f(x + dx, y, 0.0);
+    glVertex3f(x + dx, y, z);
+    glVertex3f(x, y, z);
+
+    glVertex3f(x + dx, y, 0);
+    glVertex3f(x + dx, y + dy, 0);
+    glVertex3f(x + dx, y + dy, z);
+    glVertex3f(x + dx, y, z);
+
+    glVertex3f(x + dx, y + dy, 0);
+    glVertex3f(x, y + dy, 0);
+    glVertex3f(x, y + dy, z);
+    glVertex3f(x + dx, y + dy, z);
+
+    glVertex3f(x, y + dy, 0);
+    glVertex3f(x, y, 0);
+    glVertex3f(x, y, z);
+    glVertex3f(x, y + dy, z);
+}
+
 void graphics_render_matrix(GraphicsHandle *handle)
 {
     double rgb[3];
@@ -134,6 +163,8 @@ void graphics_render_matrix(GraphicsHandle *handle)
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_GEQUAL);
 
+    glPolygonOffset(0.0, 0.0);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glBegin(GL_QUADS);
 
     for (matrix_iter_init(handle->matrix_data, &iter);
@@ -147,31 +178,26 @@ void graphics_render_matrix(GraphicsHandle *handle)
         z *= handle->z_scale;
         glColor3f(rgb[0], rgb[1], rgb[2]);
 
-        glVertex3f(x, y, z);
-        glVertex3f(x + dx, y, z);
-        glVertex3f(x + dx, y + dy, z);
-        glVertex3f(x, y + dy, z);
+        _graphics_render_block(x, y, z, dx, dy);
+    }
 
-        /* if draw blocks */
-        glVertex3f(x, y, 0.0);
-        glVertex3f(x + dx, y, 0.0);
-        glVertex3f(x + dx, y, z);
-        glVertex3f(x, y, z);
+    glEnd();
 
-        glVertex3f(x + dx, y, 0);
-        glVertex3f(x + dx, y + dy, 0);
-        glVertex3f(x + dy, y + dy, z);
-        glVertex3f(x + dx, y, z);
+    glPolygonOffset(-8.0, 5.0);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glBegin(GL_QUADS);
 
-        glVertex3f(x + dx, y + dy, 0);
-        glVertex3f(x, y + dy, 0);
-        glVertex3f(x, y + dy, z);
-        glVertex3f(x + dy, y + dy, z);
+    for (matrix_iter_init(handle->matrix_data, &iter);
+         matrix_iter_is_valid(handle->matrix_data, &iter);
+         matrix_iter_next(handle->matrix_data, &iter)) {
+        z = handle->matrix_data->chunks[iter.chunk][iter.offset];
+        x = iter.column * dx - 0.5f;
+        y = iter.row * dy - 0.5f;
 
-        glVertex3f(x, y + dy, 0);
-        glVertex3f(x, y, 0);
-        glVertex3f(x, y, z);
-        glVertex3f(x, y + dy, z);
+        z *= handle->z_scale;
+        glColor3f(0.4, 0.4, 0.4);
+
+        _graphics_render_block(x, y, z, dx, dy);
     }
 
     glEnd();

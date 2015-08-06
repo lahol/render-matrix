@@ -60,7 +60,7 @@ void matrix_append_value(Matrix *matrix, MatrixIter *iter, double value)
 {
     if (matrix->last.chunk == matrix->n_chunks) {
         ++matrix->n_chunks;
-        matrix->chunks = g_realloc(matrix->chunks, matrix->n_chunks * sizeof(double));
+        matrix->chunks = g_realloc(matrix->chunks, matrix->n_chunks * sizeof(double *));
         matrix->chunks[matrix->last.chunk] = g_malloc(MATRIX_CHUNK_SIZE * sizeof(double));
     }
 
@@ -167,4 +167,73 @@ Matrix *matrix_read_from_file(int fd)
     g_scanner_destroy(scanner);
 
     return m;
+}
+
+Matrix *matrix_dup(Matrix *matrix)
+{
+    if (!matrix)
+        return NULL;
+
+    Matrix *dup = matrix_new();
+    *dup = *matrix;
+
+    dup->chunks = g_malloc0(dup->n_chunks * sizeof(double *));
+    guint32 i;
+    for (i = 0; i < dup->n_chunks; ++i) {
+        dup->chunks[i] = g_malloc(MATRIX_CHUNK_SIZE * sizeof(double));
+        memcpy(dup->chunks[i], matrix->chunks[i], MATRIX_CHUNK_SIZE * sizeof(double));
+    }
+
+    return dup;
+}
+
+/* Permutate the matrix so that we have the blocks
+ * [ c_{2i,2j}   | c_{2i,2j+1}   ]
+ * [-----------------------------]
+ * [ c_{2i+1,2j} | c_{2i+1,2j+1} ]*/
+void matrix_permutate_matrix(Matrix *matrix)
+{
+    Matrix *tmp = matrix_dup(matrix);
+    guint32 i, j;
+    MatrixIter iter1;
+    MatrixIter iter2;
+
+    guint32 oi = (matrix->n_rows + 1)/2;
+    guint32 oj = (matrix->n_columns + 1)/2;
+
+    for (i = 0; i < matrix->n_rows; i += 2) {
+        for (j = 0; j < matrix->n_columns; j += 2) {
+            matrix_get_iter(tmp, &iter1, i, j);
+            matrix_get_iter(matrix, &iter2, i/2, j/2);
+            matrix->chunks[iter2.chunk][iter2.offset] = tmp->chunks[iter1.chunk][iter1.offset];
+        }
+    }
+    for (i = 0; i < matrix->n_rows; i += 2) {
+        for (j = 1; j < matrix->n_columns; j += 2) {
+            matrix_get_iter(tmp, &iter1, i, j);
+            matrix_get_iter(matrix, &iter2, i/2, j/2+oj);
+            matrix->chunks[iter2.chunk][iter2.offset] = tmp->chunks[iter1.chunk][iter1.offset];
+        }
+    }
+    for (i = 1; i < matrix->n_rows; i += 2) {
+        for (j = 0; j < matrix->n_columns; j += 2) {
+            matrix_get_iter(tmp, &iter1, i, j);
+            matrix_get_iter(matrix, &iter2, i/2 + oi, j/2);
+            matrix->chunks[iter2.chunk][iter2.offset] = tmp->chunks[iter1.chunk][iter1.offset];
+        }
+    }
+    for (i = 1; i < matrix->n_rows; i += 2) {
+        for (j = 1; j < matrix->n_columns; j += 2) {
+            matrix_get_iter(tmp, &iter1, i, j);
+            matrix_get_iter(matrix, &iter2, i/2 + oi, j/2 + oj);
+            matrix->chunks[iter2.chunk][iter2.offset] = tmp->chunks[iter1.chunk][iter1.offset];
+        }
+    }
+
+    matrix_free(tmp);
+}
+
+/* Alternate the signs (-1)^{j-i} */
+void matrix_alternate_signs(Matrix *matrix)
+{
 }
