@@ -2,6 +2,9 @@
 #include <glib/gi18n.h>
 #include <glib/gprintf.h>
 
+#if GTK_CHECK_VERSION(3,16,0)
+#endif
+
 /*[begin < 3.16]*/
 #include <gdk/gdkx.h>
 #include <X11/X.h>
@@ -21,7 +24,9 @@ struct _GlWidgetPrivate {
 /*[end < 3.16]*/
 };
 
+/*[begin < 3.16]*/
 G_DEFINE_TYPE(GlWidget, gl_widget, GTK_TYPE_DRAWING_AREA);
+/*[end < 3.16]*/
 
 enum {
     PROP_0,
@@ -91,12 +96,6 @@ static gboolean gl_widget_configure_event(GtkWidget *widget, GdkEventConfigure *
     GtkAllocation alloc;
     gtk_widget_get_allocation(widget, &alloc);
     GlWidgetPrivate *priv = GL_WIDGET(widget)->priv;
-
-/*[begin < 3.16]*/
-    if (G_UNLIKELY(priv->window) == 0)
-        return TRUE;
-    glXMakeCurrent(priv->display, priv->window, priv->glx_context);
-/*[end < 3.16]*/
 
     graphics_set_window_size(priv->graphics_handle, alloc.width, alloc.height);
 
