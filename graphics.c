@@ -22,6 +22,12 @@ struct _GraphicsHandle {
     double projection_matrix[16];
     double rotation_matrix[16];
     double scale_vector[4];
+
+    Matrix *matrix_data;
+
+    double max;
+    double min;
+    double z_scale;
 };
 
 /* get rgb values for (101->001->011->010->110->100)
@@ -89,9 +95,9 @@ void graphics_recalc_scale_vector(GraphicsHandle *handle)
 {
     if (!handle->width || !handle->height)
         return;
-    handle->scale_vector[0] = (2.0f/handle->width); /* *zoom_factor */
-    handle->scale_vector[1] = (2.0f/handle->height); /* *zoom_factor */
-    handle->scale_vector[2] = 0.001f; /* *zoom_factor */
+    handle->scale_vector[0] = (2.0f/handle->width) * 300; /* *zoom_factor */
+    handle->scale_vector[1] = (2.0f/handle->height) * 300; /* *zoom_factor */
+    handle->scale_vector[2] = 0.001f * 300; /* *zoom_factor */
     handle->scale_vector[3] = 1.0f;
 }
 
@@ -114,9 +120,68 @@ void graphics_cleanup(GraphicsHandle *handle)
     g_free(handle);
 }
 
+void graphics_render_matrix(GraphicsHandle *handle)
+{
+    double rgb[3];
+    if (handle->matrix_data == NULL)
+        return;
+    MatrixIter iter;
+    matrix_iter_init(handle->matrix_data, &iter);
+    double x,y,z;
+    double dx = 1.0f/handle->matrix_data->n_columns;
+    double dy = 1.0f/handle->matrix_data->n_rows;
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_GEQUAL);
+
+    glBegin(GL_QUADS);
+
+    for (matrix_iter_init(handle->matrix_data, &iter);
+         matrix_iter_is_valid(handle->matrix_data, &iter);
+         matrix_iter_next(handle->matrix_data, &iter)) {
+        z = handle->matrix_data->chunks[iter.chunk][iter.offset];
+        x = iter.column * dx - 0.5f;
+        y = iter.row * dy - 0.5f;
+
+        color_gradient_rgb((z - handle->min)*handle->z_scale, rgb);
+        z *= handle->z_scale;
+        glColor3f(rgb[0], rgb[1], rgb[2]);
+
+        glVertex3f(x, y, z);
+        glVertex3f(x + dx, y, z);
+        glVertex3f(x + dx, y + dy, z);
+        glVertex3f(x, y + dy, z);
+
+        /* if draw blocks */
+        glVertex3f(x, y, 0.0);
+        glVertex3f(x + dx, y, 0.0);
+        glVertex3f(x + dx, y, z);
+        glVertex3f(x, y, z);
+
+        glVertex3f(x + dx, y, 0);
+        glVertex3f(x + dx, y + dy, 0);
+        glVertex3f(x + dy, y + dy, z);
+        glVertex3f(x + dx, y, z);
+
+        glVertex3f(x + dx, y + dy, 0);
+        glVertex3f(x, y + dy, 0);
+        glVertex3f(x, y + dy, z);
+        glVertex3f(x + dy, y + dy, z);
+
+        glVertex3f(x, y + dy, 0);
+        glVertex3f(x, y, 0);
+        glVertex3f(x, y, z);
+        glVertex3f(x, y + dy, z);
+    }
+
+    glEnd();
+}
+
 void graphics_render(GraphicsHandle *handle)
 {
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClearDepth(0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glViewport(0, 0, handle->width, handle->height);
 
@@ -125,20 +190,10 @@ void graphics_render(GraphicsHandle *handle)
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    double rgb[3];
-    double h;
-    glBegin(GL_QUADS);
 
-    for (h=0.0; h <= 100.0; h += 0.1) {
-        color_gradient_rgb(h*0.01, rgb);
-        glColor3f(rgb[0], rgb[1], rgb[2]);
-        glVertex2f(h, 0);
-        glVertex2f(h+0.1, 0);
-        glVertex2f(h+0.1, 100);
-        glVertex2f(h, 100);
-    }
+    graphics_render_matrix(handle);
 
-    glEnd();
+    glFinish();
 }
 
 void graphics_set_window_size(GraphicsHandle *handle, int width, int height)
@@ -150,4 +205,29 @@ void graphics_set_window_size(GraphicsHandle *handle, int width, int height)
     graphics_update_camera(handle);
 }
 
+void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix)
+{
+    handle->matrix_data = matrix;
+    /* determine max/min value and set range to scale */
+    MatrixIter iter;
+    double max, min;
+    matrix_iter_init(matrix, &iter);
+    if (matrix_iter_is_valid(matrix, &iter)) {
+        max = min = matrix->chunks[iter.chunk][iter.offset];
+    }
+    matrix_iter_next(matrix, &iter);
+    for ( ; matrix_iter_is_valid(matrix, &iter); matrix_iter_next(matrix, &iter)) {
+        if (max < matrix->chunks[iter.chunk][iter.offset])
+            max = matrix->chunks[iter.chunk][iter.offset];
+        if (min > matrix->chunks[iter.chunk][iter.offset])
+            min = matrix->chunks[iter.chunk][iter.offset];
+    }
+
+    handle->max = max;
+    handle->min = min;
+    handle->z_scale = min != max ? 1.0/(max-min) : 1.0;
+
+    g_print("max/min/z_scale: %f/%f/%f\n", max, min, handle->z_scale);
+    graphics_recalc_scale_vector(handle);
+}
 
