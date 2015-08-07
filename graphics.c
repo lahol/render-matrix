@@ -29,6 +29,9 @@ struct _GraphicsHandle {
     double max;
     double min;
     double z_scale;
+
+    double elevation;
+    double azimuth;
 };
 
 /* get rgb values for (101->001->011->010->110->100)
@@ -88,6 +91,9 @@ void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevatio
     util_matrix_identify(handle->rotation_matrix);
     util_rotate_matrix(handle->rotation_matrix, azimuth, UTIL_AXIS_Z);
     util_rotate_matrix(handle->rotation_matrix, elevation, UTIL_AXIS_X);
+    
+    handle->azimuth = azimuth;
+    handle->elevation = elevation;
 
     graphics_update_camera(handle);
 }
@@ -215,6 +221,53 @@ void graphics_render_grid(GraphicsHandle *handle)
     glVertex3f(0.5f, 0.5f, 0.0f);
     glVertex3f(-0.5f, 0.5f, 0.0f);
     glEnd();
+    
+    double x, z;
+    double wx = (handle->azimuth >= 0 && handle->azimuth <= 180) ? 0.5f : -0.5f;
+    double wy = (handle->azimuth >= 90 && handle->azimuth <= 270) ? -0.5f : 0.5f;
+    if (handle->elevation > 0) {
+        wx = -wx;
+        wy = -wy;
+    }
+
+    /* TODO: offset z to reasonable numbers < min (e.g. 2.17 -> 2.5) */
+    double dz = (handle->max - handle->min) * handle->z_scale * 0.2f;
+    double z_min = handle->min * handle->z_scale;
+    double z_max = handle->max * handle->z_scale;
+    double z_floor = z_min; /* elevation > 0 -> z_max ?? */
+
+    glLineStipple(1, 0xaaaa);
+    glEnable(GL_LINE_STIPPLE);
+    glBegin(GL_LINES);
+
+    glColor3f(0.2f, 0.2f, 0.2f);
+    for (x = -0.5f; x <= 0.51f; x += 0.2f) {
+        /* floor */
+        glVertex3f(x, -0.5, z_floor);
+        glVertex3f(x, 0.5, z_floor);
+
+        glVertex3f(-0.5, x, z_floor);
+        glVertex3f(0.5, x, z_floor);
+
+        /* walls */
+        glVertex3f(wx, x, z_min);
+        glVertex3f(wx, x, z_max);
+
+        glVertex3f(x, wy, z_min);
+        glVertex3f(x, wy, z_max);
+
+        for (z = z_min; z <= z_max+0.5f*dz; z += dz) {
+            glVertex3f(wx, -0.5f, z);
+            glVertex3f(wx, 0.5f, z);
+
+            glVertex3f(-0.5f, wy, z);
+            glVertex3f(0.5f, wy, z);
+        }
+    }
+
+    glEnd();
+/*    glDisable(GL_LINE_STIPPLE);*/
+
 #if 0
     glBegin(GL_LINES);
     /* x axis */
