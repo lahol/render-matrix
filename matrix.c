@@ -236,4 +236,13 @@ void matrix_permutate_matrix(Matrix *matrix)
 /* Alternate the signs (-1)^{j-i} */
 void matrix_alternate_signs(Matrix *matrix)
 {
+    guint32 i, j;
+    MatrixIter iter;
+
+    for (i = 0; i < matrix->n_rows; ++i) {
+        for (j = (i+1)%2; j < matrix->n_columns; j += 2) {
+            matrix_get_iter(matrix, &iter, i, j);
+            matrix->chunks[iter.chunk][iter.offset] = - matrix->chunks[iter.chunk][iter.offset];
+        }
+    }
 }

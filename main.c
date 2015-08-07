@@ -39,6 +39,7 @@ int main(int argc, char **argv)
     if (m) {
         g_print("matrix: %u x %u\n", m->n_rows, m->n_columns);
         matrix_permutate_matrix(m);
+        matrix_alternate_signs(m);
     }
     graphics_set_matrix_data(appdata.graphics_handle, m);
 
@@ -55,7 +56,7 @@ int main(int argc, char **argv)
     appdata.spin_azimuth = gtk_spin_button_new_with_range(0.0, 360.0, 5.0);
     gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(appdata.spin_azimuth), TRUE);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(appdata.spin_azimuth), 65.0);
-    appdata.spin_elevation = gtk_spin_button_new_with_range(-90.0, 90.0, 5.0);
+    appdata.spin_elevation = gtk_spin_button_new_with_range(-180.0, 180.0, 5.0);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(appdata.spin_elevation), -60.0);
 
     g_signal_connect(G_OBJECT(appdata.spin_azimuth), "value-changed",

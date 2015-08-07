@@ -52,7 +52,7 @@ void color_gradient_rgb(double hue, double *rgb)
     };
 
     if (hue >= 1.0) {
-        rgb[0] = 1.0; rgb[1] = 0.0; rgb[2] = 0.0;
+        rgb[0] = basic_table[_N_COLORS][0]; rgb[1] = basic_table[_N_COLORS][1]; rgb[2] = basic_table[_N_COLORS][2];
         return;
     }
     if (hue <= 0.0) {
@@ -172,7 +172,7 @@ void graphics_render_matrix(GraphicsHandle *handle)
          matrix_iter_next(handle->matrix_data, &iter)) {
         z = handle->matrix_data->chunks[iter.chunk][iter.offset];
         x = iter.column * dx - 0.5f;
-        y = iter.row * dy - 0.5f;
+        y = 0.5f - iter.row * dy - dy;
 
         color_gradient_rgb((z - handle->min)*handle->z_scale, rgb);
         z *= handle->z_scale;
@@ -192,7 +192,7 @@ void graphics_render_matrix(GraphicsHandle *handle)
          matrix_iter_next(handle->matrix_data, &iter)) {
         z = handle->matrix_data->chunks[iter.chunk][iter.offset];
         x = iter.column * dx - 0.5f;
-        y = iter.row * dy - 0.5f;
+        y = 0.5f - iter.row * dy - dy;
 
         z *= handle->z_scale;
         glColor3f(0.4, 0.4, 0.4);
@@ -201,6 +201,35 @@ void graphics_render_matrix(GraphicsHandle *handle)
     }
 
     glEnd();
+}
+
+void graphics_render_grid(GraphicsHandle *handle)
+{
+    glBegin(GL_LINE_LOOP);
+    glColor3f(0.0, 0.0, 0.0);
+    glVertex3f(-0.5f, -0.5f, 0.0f);
+    glVertex3f(0.5f, -0.5f, 0.0f);
+    glVertex3f(0.5f, 0.5f, 0.0f);
+    glVertex3f(-0.5f, 0.5f, 0.0f);
+    glEnd();
+#if 0
+    glBegin(GL_LINES);
+    /* x axis */
+    glColor3f(1.0, 0.0, 0.0);
+    glVertex3f(0.0, 0.0, 0.0);
+    glVertex3f(1.0, 0.0, 0.0);
+
+    /* y axis */
+    glColor3f(0.0, 1.0, 0.0);
+    glVertex3f(0.0, 0.0, 0.0);
+    glVertex3f(0.0, 1.0, 0.0);
+
+    /* z axis */
+    glColor3f(0.0, 0.0, 1.0);
+    glVertex3f(0.0, 0.0, 0.0);
+    glVertex3f(0.0, 0.0, 1.0);
+    glEnd();
+#endif
 }
 
 void graphics_render(GraphicsHandle *handle)
@@ -217,6 +246,7 @@ void graphics_render(GraphicsHandle *handle)
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
+    graphics_render_grid(handle);
     graphics_render_matrix(handle);
 
     glFinish();
