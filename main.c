@@ -44,6 +44,37 @@ static void matrix_properties_toggled(GtkToggleButton *button, gpointer userdata
     gtk_widget_queue_draw(appdata.glwidget);
 }
 
+static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
+{
+    GtkWidget *dialog = gtk_file_chooser_dialog_new("Save Image",
+            GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(button))),
+            GTK_FILE_CHOOSER_ACTION_SAVE,
+            "Cancel", GTK_RESPONSE_CANCEL,
+            "Save", GTK_RESPONSE_ACCEPT,
+            NULL);
+    GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
+    gtk_file_chooser_set_do_overwrite_confirmation(chooser, TRUE);
+
+    gtk_file_chooser_set_current_name(chooser, "matrix-image.png");
+
+    GtkFileFilter *filter;
+    filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(filter, "PNG-Imagers");
+    gtk_file_filter_add_pattern(filter, "*.png");
+    gtk_file_chooser_add_filter(chooser, filter);
+
+    gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+    gchar *filename;
+
+    if (res == GTK_RESPONSE_ACCEPT) {
+        filename = gtk_file_chooser_get_filename(chooser);
+        gl_widget_save_to_file(GL_WIDGET(appdata.glwidget), filename);
+        g_free(filename);
+    }
+
+    gtk_widget_destroy(dialog);
+}
+
 /* TODO: Use GtkGLArea if Gtk+>=3.16 */
 int main(int argc, char **argv)
 {
@@ -63,7 +94,7 @@ int main(int argc, char **argv)
 
     appdata.glwidget = gl_widget_new(appdata.graphics_handle);
 
-    GtkWidget *hbox, *vbox, *label;
+    GtkWidget *hbox, *vbox, *label, *button;
     hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 
@@ -96,6 +127,11 @@ int main(int argc, char **argv)
     g_signal_connect(G_OBJECT(appdata.check_alternate_signs), "toggled",
             G_CALLBACK(matrix_properties_toggled), NULL);
     gtk_box_pack_start(GTK_BOX(hbox), appdata.check_alternate_signs, FALSE, FALSE, 3);
+
+    button = gtk_button_new_with_label("Save image");
+    g_signal_connect(G_OBJECT(button), "clicked",
+            G_CALLBACK(save_to_file_button_clicked), NULL);
+    gtk_box_pack_end(GTK_BOX(hbox), button, FALSE, FALSE, 3);
 
 
     gtk_box_pack_start(GTK_BOX(vbox), appdata.glwidget, TRUE, TRUE, 0);

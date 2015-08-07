@@ -31,5 +31,6 @@ struct _GlWidgetClass {
 GType gl_widget_get_type(void) G_GNUC_CONST;
 
 GtkWidget *gl_widget_new(GraphicsHandle *handle);
+void gl_widget_save_to_file(GlWidget *widget, const gchar *filename);
 
 G_END_DECLS

@@ -14,6 +14,7 @@
 
 #include "graphics.h"
 #include "util-projection.h"
+#include "util-png.h"
 
 struct _GraphicsHandle {
     int width;
@@ -236,7 +237,7 @@ void graphics_render_grid(GraphicsHandle *handle)
 
 void graphics_render(GraphicsHandle *handle)
 {
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
     glClearDepth(0.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -289,3 +290,15 @@ void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix)
     graphics_recalc_scale_vector(handle);
 }
 
+void graphics_save_buffer_to_file(GraphicsHandle *handle, const gchar *filename)
+{
+    g_return_if_fail(handle != NULL);
+    g_return_if_fail(filename != NULL);
+
+    guchar *buffer = g_malloc(handle->width * handle->height * 4);
+    glReadPixels(0, 0, handle->width, handle->height,
+            GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, buffer);
+
+    util_write_to_png(filename, buffer, handle->width, handle->height);
+    g_free(buffer);
+}

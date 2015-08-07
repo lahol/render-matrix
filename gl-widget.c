@@ -207,3 +207,13 @@ GtkWidget *gl_widget_new(GraphicsHandle *handle)
 {
     return g_object_new(GL_WIDGET_TYPE, "graphics-handle", handle, NULL);
 }
+
+void gl_widget_save_to_file(GlWidget *widget, const gchar *filename)
+{
+    g_return_if_fail(IS_GL_WIDGET(widget));
+/*[begin < 3.16]*/
+    glXMakeCurrent(widget->priv->display, widget->priv->window, widget->priv->glx_context);
+/*[end < 3.16]*/
+    graphics_save_buffer_to_file(widget->priv->graphics_handle, filename);
+}
+

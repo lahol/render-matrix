@@ -4,7 +4,7 @@ PKG_CONFIG := pkg-config
 CFLAGS ?= -Wall -g
 INCLUDES = `$(PKG_CONFIG) --cflags glib-2.0 gtk+-3.0 x11 gl`
 LDFLAGS ?= 
-LIBS = `$(PKG_CONFIG) --libs glib-2.0 gtk+-3.0 x11 gl` -lm
+LIBS = `$(PKG_CONFIG) --libs glib-2.0 gtk+-3.0 x11 gl` -lm -lpng
 
 RCVERSION := '$(shell git describe --tags --always) ($(shell git log --pretty=format:%cd --date=short -n1), branch \"$(shell git describe --tags --always --all | sed s:heads/::)\")'
 
