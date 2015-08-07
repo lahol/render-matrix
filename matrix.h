@@ -31,6 +31,7 @@ gboolean matrix_get_iter(Matrix *matrix, MatrixIter *iter, guint32 row, guint32 
 
 Matrix *matrix_read_from_file(int fd);
 
+void matrix_copy(Matrix *dst, Matrix *src);
 Matrix *matrix_dup(Matrix *matrix);
 void matrix_permutate_matrix(Matrix *matrix);
 void matrix_alternate_signs(Matrix *matrix);

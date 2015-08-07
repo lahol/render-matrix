@@ -165,6 +165,8 @@ void graphics_render_matrix(GraphicsHandle *handle)
 
     glPolygonOffset(0.0, 0.0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBegin(GL_QUADS);
 
     for (matrix_iter_init(handle->matrix_data, &iter);
@@ -176,7 +178,7 @@ void graphics_render_matrix(GraphicsHandle *handle)
 
         color_gradient_rgb((z - handle->min)*handle->z_scale, rgb);
         z *= handle->z_scale;
-        glColor3f(rgb[0], rgb[1], rgb[2]);
+        glColor4f(rgb[0], rgb[1], rgb[2], 1.0f);
 
         _graphics_render_block(x, y, z, dx, dy);
     }

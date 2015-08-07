@@ -10,7 +10,7 @@ Matrix *matrix_new(void)
     return m;
 }
 
-void matrix_free(Matrix *matrix)
+void matrix_clear(Matrix *matrix)
 {
     if (!matrix)
         return;
@@ -19,6 +19,12 @@ void matrix_free(Matrix *matrix)
         g_free(matrix->chunks[i]);
     g_free(matrix->chunks);
 
+    memset(matrix, 0, sizeof(Matrix));
+}
+
+void matrix_free(Matrix *matrix)
+{
+    matrix_clear(matrix);
     g_free(matrix);
 }
 
@@ -169,20 +175,29 @@ Matrix *matrix_read_from_file(int fd)
     return m;
 }
 
+void matrix_copy(Matrix *dst, Matrix *src)
+{
+    if (dst == src || !dst || !src)
+        return;
+    matrix_clear(dst);
+    *dst = *src;
+
+    dst->chunks = g_malloc0(dst->n_chunks * sizeof(double *));
+    guint32 i;
+    for (i = 0; i < dst->n_chunks; ++i) {
+        dst->chunks[i] = g_malloc(MATRIX_CHUNK_SIZE * sizeof(double));
+        memcpy(dst->chunks[i], src->chunks[i], MATRIX_CHUNK_SIZE * sizeof(double));
+    }
+
+}
+
 Matrix *matrix_dup(Matrix *matrix)
 {
     if (!matrix)
         return NULL;
 
     Matrix *dup = matrix_new();
-    *dup = *matrix;
-
-    dup->chunks = g_malloc0(dup->n_chunks * sizeof(double *));
-    guint32 i;
-    for (i = 0; i < dup->n_chunks; ++i) {
-        dup->chunks[i] = g_malloc(MATRIX_CHUNK_SIZE * sizeof(double));
-        memcpy(dup->chunks[i], matrix->chunks[i], MATRIX_CHUNK_SIZE * sizeof(double));
-    }
+    matrix_copy(dup, matrix);
 
     return dup;
 }
