@@ -194,6 +194,7 @@ void graphics_render_matrix(GraphicsHandle *handle)
 
     glPolygonOffset(-8.0, 5.0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glLineWidth(0.5f);
     glBegin(GL_QUADS);
 
     for (matrix_iter_init(handle->matrix_data, &iter);
@@ -214,6 +215,7 @@ void graphics_render_matrix(GraphicsHandle *handle)
 
 void graphics_render_grid(GraphicsHandle *handle)
 {
+    glLineWidth(1.0f);
     glBegin(GL_LINE_LOOP);
     glColor3f(0.0, 0.0, 0.0);
     glVertex3f(-0.5f, -0.5f, 0.0f);
