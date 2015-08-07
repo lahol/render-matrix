@@ -14,6 +14,7 @@ struct {
     GtkWidget *spin_elevation;
     GtkWidget *check_permutation;
     GtkWidget *check_alternate_signs;
+    GtkWidget *check_shift_signs;
 
     Matrix *orig_matrix;
     Matrix *display_matrix;
@@ -39,7 +40,8 @@ static void matrix_properties_toggled(GtkToggleButton *button, gpointer userdata
         matrix_permutate_matrix(appdata.display_matrix);
 
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_alternate_signs)))
-        matrix_alternate_signs(appdata.display_matrix);
+        matrix_alternate_signs(appdata.display_matrix,
+                gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_shift_signs)));
 
     gtk_widget_queue_draw(appdata.glwidget);
 }
@@ -127,6 +129,11 @@ int main(int argc, char **argv)
     g_signal_connect(G_OBJECT(appdata.check_alternate_signs), "toggled",
             G_CALLBACK(matrix_properties_toggled), NULL);
     gtk_box_pack_start(GTK_BOX(hbox), appdata.check_alternate_signs, FALSE, FALSE, 3);
+
+    appdata.check_shift_signs = gtk_check_button_new_with_label("Shift signs");
+    g_signal_connect(G_OBJECT(appdata.check_shift_signs), "toggled",
+            G_CALLBACK(matrix_properties_toggled), NULL);
+    gtk_box_pack_start(GTK_BOX(hbox), appdata.check_shift_signs, FALSE, FALSE, 3);
 
     button = gtk_button_new_with_label("Save image");
     g_signal_connect(G_OBJECT(button), "clicked",

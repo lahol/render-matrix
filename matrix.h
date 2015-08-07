@@ -34,4 +34,4 @@ Matrix *matrix_read_from_file(int fd);
 void matrix_copy(Matrix *dst, Matrix *src);
 Matrix *matrix_dup(Matrix *matrix);
 void matrix_permutate_matrix(Matrix *matrix);
-void matrix_alternate_signs(Matrix *matrix);
+void matrix_alternate_signs(Matrix *matrix, gboolean do_shift);
