@@ -11,6 +11,8 @@
 
 #include <glib.h>
 #include <gdk/gdkx.h>
+#include <cairo.h>
+#include <math.h>
 
 #include "graphics.h"
 #include "util-projection.h"
@@ -32,6 +34,10 @@ struct _GraphicsHandle {
 
     double elevation;
     double azimuth;
+
+    unsigned int overlay_tex_id;
+    unsigned char *overlay_data;
+    cairo_surface_t *overlay_surface;
 };
 
 /* get rgb values for (101->001->011->010->110->100)
@@ -108,6 +114,28 @@ void graphics_recalc_scale_vector(GraphicsHandle *handle)
     handle->scale_vector[3] = 1.0f;
 }
 
+void graphics_overlay_init(GraphicsHandle *handle)
+{
+    if (handle->overlay_surface)
+        cairo_surface_destroy(handle->overlay_surface);
+    if (handle->overlay_data)
+        g_free(handle->overlay_data);
+    if (handle->overlay_tex_id)
+        glDeleteTextures(1, &handle->overlay_tex_id);
+
+    glGenTextures(1, &handle->overlay_tex_id);
+    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, handle->overlay_tex_id);
+    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_GENERATE_MIPMAP, GL_TRUE);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, handle->width, handle->height,
+            0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+
+    handle->overlay_data = g_malloc(4 * handle->width * handle->height);
+    handle->overlay_surface = cairo_image_surface_create_for_data(handle->overlay_data,
+            CAIRO_FORMAT_ARGB32, handle->width, handle->height, 4 * handle->width);
+}
+
 GraphicsHandle *graphics_init(void)
 {
     GraphicsHandle *handle = g_malloc0(sizeof(GraphicsHandle));
@@ -124,6 +152,14 @@ GraphicsHandle *graphics_init(void)
 
 void graphics_cleanup(GraphicsHandle *handle)
 {
+    if (!handle)
+        return;
+    if (handle->overlay_surface)
+        cairo_surface_destroy(handle->overlay_surface);
+    if (handle->overlay_data)
+        g_free(handle->overlay_data);
+    if (handle->overlay_tex_id)
+        glDeleteTextures(1, &handle->overlay_tex_id);
     g_free(handle);
 }
 
@@ -167,6 +203,7 @@ void graphics_render_matrix(GraphicsHandle *handle)
     double dx = 1.0f/handle->matrix_data->n_columns;
     double dy = 1.0f/handle->matrix_data->n_rows;
 
+    glDisable(GL_TEXTURE_RECTANGLE_ARB);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_GEQUAL);
 
@@ -225,8 +262,59 @@ void graphics_world_to_screen(GraphicsHandle *handle,
     if (sz) *sz = vs[2];
 }
 
+void graphics_render_overlay(GraphicsHandle *handle)
+{
+    cairo_t *cr = cairo_create(handle->overlay_surface);
+    cairo_set_source_rgba(cr, 1.0f, 1.0f, 1.0f, 0.0f);
+    cairo_paint(cr);
+
+/*    cairo_translate(cr, handle->width/2, handle->height/2);
+    cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.7f);
+    cairo_arc(cr, 0, 0, 50, 0, 2 * M_PI);
+    cairo_fill(cr);*/
+    cairo_translate(cr, 0.0, 10);
+    cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.7f);
+    cairo_show_text(cr, "Cairo-Overlay active");
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_TEXTURE_RECTANGLE_ARB);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, handle->overlay_tex_id);
+    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, handle->width, handle->height,
+            0, GL_BGRA, GL_UNSIGNED_BYTE, handle->overlay_data);
+
+    glMatrixMode(GL_PROJECTION);
+/*    glPushMatrix();*/
+    glLoadIdentity();
+    glOrtho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, (GLfloat)handle->height);
+    glVertex2f(0.0f, 0.0f);
+    glTexCoord2f((GLfloat)handle->width, (GLfloat)handle->height);
+    glVertex2f(1.0f, 0.0f);
+    glTexCoord2f((GLfloat)handle->width, 0.0f);
+    glVertex2f(1.0f, 1.0f);
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(0.0f, 1.0f);
+    glEnd();
+/*    glPopMatrix();*/
+
+    cairo_destroy(cr);
+}
+
 void graphics_render_grid(GraphicsHandle *handle)
 {
+    glDisable(GL_TEXTURE_RECTANGLE_ARB);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_GEQUAL);
     glLineWidth(1.0f);
     glBegin(GL_LINE_LOOP);
     glColor3f(0.0, 0.0, 0.0);
@@ -318,6 +406,7 @@ void graphics_render(GraphicsHandle *handle)
 
     graphics_render_grid(handle);
     graphics_render_matrix(handle);
+    graphics_render_overlay(handle);
 
     glFinish();
 }
@@ -329,6 +418,7 @@ void graphics_set_window_size(GraphicsHandle *handle, int width, int height)
 
     graphics_recalc_scale_vector(handle);
     graphics_update_camera(handle);
+    graphics_overlay_init(handle);
 }
 
 void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix)

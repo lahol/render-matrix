@@ -61,7 +61,7 @@ static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
 
     GtkFileFilter *filter;
     filter = gtk_file_filter_new();
-    gtk_file_filter_set_name(filter, "PNG-Imagers");
+    gtk_file_filter_set_name(filter, "PNG-Images");
     gtk_file_filter_add_pattern(filter, "*.png");
     gtk_file_chooser_add_filter(chooser, filter);
 
