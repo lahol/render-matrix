@@ -14,6 +14,10 @@ rm_SRC := $(wildcard *.c)
 rm_OBJ := $(rm_SRC:.c=.o)
 rm_HEADERS := $(wildcard *.h)
 
+ifndef DISABLE_MSAA
+	CFLAGS += -DWITH_MSAA
+endif
+
 all: render-matrix
 
 render-matrix: $(rm_OBJ)

@@ -192,8 +192,10 @@ static void gl_widget_init_gl(GlWidget *self)
         GLX_GREEN_SIZE, 8,
         GLX_BLUE_SIZE, 8,
         GLX_DEPTH_SIZE, 24,
+#ifdef WITH_MSAA
         GLX_SAMPLE_BUFFERS, 1,
         GLX_SAMPLES, 4,
+#endif
         0
     };
 
