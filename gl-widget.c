@@ -13,6 +13,8 @@
 #include <GL/glx.h>
 /*[end < 3.16]*/
 
+#include <cairo-gl.h>
+
 struct _GlWidgetPrivate {
     /* private data */
     GraphicsHandle *graphics_handle;
@@ -22,6 +24,13 @@ struct _GlWidgetPrivate {
     Display *display;
     Window window;
 /*[end < 3.16]*/
+
+    cairo_device_t *cairo_dev;
+    cairo_surface_t *cairo_surf;
+    int cairo_tex;
+
+    gint width;
+    gint height;
 };
 
 /*[begin < 3.16]*/
@@ -45,8 +54,13 @@ static void gl_widget_dispose(GObject *gobject)
     GlWidget *self = GL_WIDGET(gobject);
 
 /*[begin < 3.16]*/
+    if (self->priv->cairo_dev) {
+        cairo_device_destroy(self->priv->cairo_dev);
+        self->priv->cairo_dev = NULL;
+    }
     if (self->priv->glx_context) {
         glXDestroyContext(self->priv->display, self->priv->glx_context);
+        self->priv->glx_context = NULL;
     }
 /*[end < 3.16]*/
 
@@ -97,6 +111,9 @@ static gboolean gl_widget_configure_event(GtkWidget *widget, GdkEventConfigure *
     gtk_widget_get_allocation(widget, &alloc);
     GlWidgetPrivate *priv = GL_WIDGET(widget)->priv;
 
+    priv->width = alloc.width;
+    priv->height = alloc.height;
+
     graphics_set_window_size(priv->graphics_handle, alloc.width, alloc.height);
 
     return TRUE;
@@ -106,6 +123,12 @@ static gboolean gl_widget_draw(GtkWidget *widget, cairo_t *cr)
 {
     GlWidgetPrivate *priv = GL_WIDGET(widget)->priv;
 /*[begin < 3.16]*/
+    /* dos not work -> make texture */
+/*    cairo_surface_t *surf = cairo_gl_surface_create_for_window(priv->cairo_dev, priv->window,
+            priv->width, priv->height);
+
+    cr = cairo_create(surf);*/
+
     glXMakeCurrent(priv->display, priv->window, priv->glx_context);
 /*[end < 3.16]*/
 
@@ -114,6 +137,12 @@ static gboolean gl_widget_draw(GtkWidget *widget, cairo_t *cr)
 /*[begin < 3.16]*/
     glXSwapBuffers(priv->display, priv->window);
 /*[end < 3.16]*/
+/*    cairo_rectangle(cr, 0, 0, 1, 1);
+    cairo_set_source_rgb(cr, 1.0, 0.0, 0.0);
+    cairo_fill(cr);
+
+    cairo_destroy(cr);
+    cairo_surface_destroy(surf);*/
 
     return TRUE;
 }
@@ -187,6 +216,8 @@ static void gl_widget_init_gl(GlWidget *self)
     self->priv->glx_context = glXCreateContext(self->priv->display, vi, NULL, True);
 
     XFree(vi);
+    
+    self->priv->cairo_dev = cairo_glx_device_create(self->priv->display, self->priv->glx_context);
 /*[end < 3.16]*/
 }
 

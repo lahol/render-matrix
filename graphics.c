@@ -213,6 +213,18 @@ void graphics_render_matrix(GraphicsHandle *handle)
     glEnd();
 }
 
+void graphics_world_to_screen(GraphicsHandle *handle,
+                              double wx, double wy, double wz,
+                              double *sx, double *sy, double *sz)
+{
+    double vs[4];
+    double vw[4] = { wx, wy, wz, 1.0f };
+    util_vector_matrix_multiply(vw, handle->projection_matrix, vs);
+    if (sx) *sx = (vs[0] + 1.0f) * 0.5f * handle->width;
+    if (sy) *sy = (1.0f - vs[1]) * 0.5f * handle->height;
+    if (sz) *sz = vs[2];
+}
+
 void graphics_render_grid(GraphicsHandle *handle)
 {
     glLineWidth(1.0f);
