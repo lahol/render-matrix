@@ -14,6 +14,8 @@ void graphics_set_window_size(GraphicsHandle *handle, int width, int height);
 
 void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevation);
 
+void graphics_camera_zoom(GraphicsHandle *handle, gint steps);
+
 void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix);
 
 void graphics_save_buffer_to_file(GraphicsHandle *handle, const gchar *filename);

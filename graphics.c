@@ -31,6 +31,8 @@ struct _GraphicsHandle {
     double max;
     double min;
     double z_scale;
+    double zoom_factor;
+    gint zoom_level;
 
     double elevation;
     double azimuth;
@@ -80,6 +82,16 @@ void color_gradient_rgb(double hue, double *rgb)
 #undef _N_COLORS
 }
 
+void graphics_recalc_scale_vector(GraphicsHandle *handle)
+{
+    if (!handle->width || !handle->height)
+        return;
+    handle->scale_vector[0] = (2.0f/handle->width) * handle->zoom_factor;
+    handle->scale_vector[1] = (2.0f/handle->height) * handle->zoom_factor;
+    handle->scale_vector[2] = 0.001f * handle->zoom_factor;
+    handle->scale_vector[3] = 1.0f;
+}
+
 void graphics_update_camera(GraphicsHandle *handle)
 {
     if (!handle->width || !handle->height)
@@ -104,14 +116,16 @@ void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevatio
     graphics_update_camera(handle);
 }
 
-void graphics_recalc_scale_vector(GraphicsHandle *handle)
+void graphics_camera_zoom(GraphicsHandle *handle, gint steps)
 {
-    if (!handle->width || !handle->height)
-        return;
-    handle->scale_vector[0] = (2.0f/handle->width) * 512; /* *zoom_factor */
-    handle->scale_vector[1] = (2.0f/handle->height) * 512; /* *zoom_factor */
-    handle->scale_vector[2] = 0.001f * 512; /* *zoom_factor */
-    handle->scale_vector[3] = 1.0f;
+    g_return_if_fail(handle != NULL);
+
+    handle->zoom_level += steps;
+    handle->zoom_factor = handle->zoom_level >= 0 ? sqrt((double)(1 << handle->zoom_level)) :
+                                                    1.0f/sqrt(((double)(1 << -handle->zoom_level)));
+
+    graphics_recalc_scale_vector(handle);
+    graphics_update_camera(handle);
 }
 
 void graphics_overlay_init(GraphicsHandle *handle)
@@ -146,6 +160,9 @@ GraphicsHandle *graphics_init(void)
     handle->scale_vector[1] = 1.0;
     handle->scale_vector[2] = 1.0;
     handle->scale_vector[3] = 1.0;
+
+    handle->zoom_factor = 512.0f;
+    handle->zoom_level = 18;
 
     return handle;
 }

@@ -130,8 +130,26 @@ static void gl_widget_realize(GtkWidget *widget)
 {
     GTK_WIDGET_CLASS(gl_widget_parent_class)->realize(widget);
 /*[begin < 3.16]*/
-    GL_WIDGET(widget)->priv->window = GDK_WINDOW_XID(gtk_widget_get_window(widget));
+    GdkWindow *gdkwin = gtk_widget_get_window(widget);
+    GL_WIDGET(widget)->priv->window = GDK_WINDOW_XID(gdkwin);
+    gdk_window_set_events(gdkwin,
+                          gdk_window_get_events(gdkwin) |
+                          GDK_BUTTON_PRESS_MASK |
+                          GDK_POINTER_MOTION_MASK |
+                          GDK_SCROLL_MASK);
 /*[end < 3.16]*/
+}
+
+static gboolean gl_widget_scroll_event(GtkWidget *widget, GdkEventScroll *event)
+{
+    if (event->direction == GDK_SCROLL_UP)
+        graphics_camera_zoom(GL_WIDGET(widget)->priv->graphics_handle, 1);
+    else if (event->direction == GDK_SCROLL_DOWN)
+        graphics_camera_zoom(GL_WIDGET(widget)->priv->graphics_handle, -1);
+
+    gtk_widget_queue_draw(widget);
+
+    return FALSE;
 }
 
 static void gl_widget_class_init(GlWidgetClass *klass)
@@ -148,6 +166,7 @@ static void gl_widget_class_init(GlWidgetClass *klass)
     gtkwidget_class->realize = gl_widget_realize;
     gtkwidget_class->configure_event = gl_widget_configure_event;
     gtkwidget_class->draw = gl_widget_draw;
+    gtkwidget_class->scroll_event = gl_widget_scroll_event; /* button_press_event, key_press_event … */
 
     g_object_class_install_property(gobject_class,
             PROP_GRAPHICS_HANDLE,
