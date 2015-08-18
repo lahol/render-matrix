@@ -12,6 +12,7 @@
 #include <glib.h>
 #include <gdk/gdkx.h>
 #include <cairo.h>
+#include <pango/pangocairo.h>
 #include <math.h>
 
 #include "graphics.h"
@@ -32,7 +33,7 @@ struct _GraphicsHandle {
     double min;
     double z_scale;
     double zoom_factor;
-    gint zoom_level;
+    gint8 zoom_level;
 
     double elevation;
     double azimuth;
@@ -121,8 +122,13 @@ void graphics_camera_zoom(GraphicsHandle *handle, gint steps)
     g_return_if_fail(handle != NULL);
 
     handle->zoom_level += steps;
-    handle->zoom_factor = handle->zoom_level >= 0 ? sqrt((double)(1 << handle->zoom_level)) :
-                                                    1.0f/sqrt(((double)(1 << -handle->zoom_level)));
+    if (handle->zoom_level > 12)
+        handle->zoom_level = 12;
+    else if (handle->zoom_level < -12)
+        handle->zoom_level = -12;
+
+    handle->zoom_factor = handle->zoom_level >= -18 ? sqrt((double)(1 << (handle->zoom_level+18))) :
+                                                    1.0f/sqrt(((double)(1 << (-handle->zoom_level-18))));
 
     graphics_recalc_scale_vector(handle);
     graphics_update_camera(handle);
@@ -139,7 +145,6 @@ void graphics_overlay_init(GraphicsHandle *handle)
 
     glGenTextures(1, &handle->overlay_tex_id);
     glBindTexture(GL_TEXTURE_RECTANGLE_ARB, handle->overlay_tex_id);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_GENERATE_MIPMAP, GL_TRUE);
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, handle->width, handle->height,
@@ -162,7 +167,7 @@ GraphicsHandle *graphics_init(void)
     handle->scale_vector[3] = 1.0;
 
     handle->zoom_factor = 512.0f;
-    handle->zoom_level = 18;
+    handle->zoom_level = 0;
 
     return handle;
 }
@@ -282,17 +287,40 @@ void graphics_world_to_screen(GraphicsHandle *handle,
 void graphics_render_overlay(GraphicsHandle *handle)
 {
     cairo_t *cr = cairo_create(handle->overlay_surface);
-    cairo_set_source_rgba(cr, 1.0f, 1.0f, 1.0f, 0.0f);
+    /* clear surface */
+    cairo_save(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
     cairo_paint(cr);
+    cairo_restore(cr);
 
 /*    cairo_translate(cr, handle->width/2, handle->height/2);
     cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.7f);
     cairo_arc(cr, 0, 0, 50, 0, 2 * M_PI);
     cairo_fill(cr);*/
-    cairo_translate(cr, 0.0, 10);
-    cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.7f);
-    cairo_show_text(cr, "Cairo-Overlay active");
 
+    PangoLayout *layout;
+    PangoFontDescription *desc;
+
+    cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.7f);
+    layout = pango_cairo_create_layout(cr);
+
+    desc = pango_font_description_from_string("Sans 8");
+    pango_layout_set_font_description(layout, desc);
+    pango_font_description_free(desc);
+
+    pango_layout_set_markup(layout, "Pango/Cairo enabled", -1);
+    PangoRectangle extents;
+    pango_layout_get_pixel_extents(layout, NULL, &extents);
+
+    cairo_translate(cr, extents.x+1.0f, extents.y+1.0f);
+    pango_cairo_update_layout(cr, layout);
+    pango_cairo_show_layout(cr, layout);
+
+    g_object_unref(layout);
+
+
+/* end preparing surface */
+/* bring surface to texture */
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     glDisable(GL_DEPTH_TEST);
