@@ -25,6 +25,9 @@ struct _GlWidgetPrivate {
 
     gint width;
     gint height;
+
+    gdouble last_x;
+    gdouble last_y;
 };
 
 /*[begin < 3.16]*/
@@ -152,6 +155,30 @@ static gboolean gl_widget_scroll_event(GtkWidget *widget, GdkEventScroll *event)
     return FALSE;
 }
 
+static gboolean gl_widget_button_press_event(GtkWidget *widget, GdkEventButton *event)
+{
+    GlWidgetPrivate *priv = GL_WIDGET(widget)->priv;
+    if (event->button == 3) {
+        priv->last_x = event->x;
+        priv->last_y = event->y;
+    }
+    return FALSE;
+}
+
+static gboolean gl_widget_motion_notify_event(GtkWidget *widget, GdkEventMotion *event)
+{
+    GlWidgetPrivate *priv = GL_WIDGET(widget)->priv;
+    if (event->state & GDK_BUTTON3_MASK) {
+        graphics_camera_move(priv->graphics_handle,
+                event->x - priv->last_x,
+                event->y - priv->last_y);
+        priv->last_x = event->x;
+        priv->last_y = event->y;
+        gtk_widget_queue_draw(widget);
+    }
+    return FALSE;
+}
+
 static void gl_widget_class_init(GlWidgetClass *klass)
 {
     GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
@@ -167,6 +194,8 @@ static void gl_widget_class_init(GlWidgetClass *klass)
     gtkwidget_class->configure_event = gl_widget_configure_event;
     gtkwidget_class->draw = gl_widget_draw;
     gtkwidget_class->scroll_event = gl_widget_scroll_event; /* button_press_event, key_press_event … */
+    gtkwidget_class->button_press_event = gl_widget_button_press_event;
+    gtkwidget_class->motion_notify_event = gl_widget_motion_notify_event;
 
     g_object_class_install_property(gobject_class,
             PROP_GRAPHICS_HANDLE,

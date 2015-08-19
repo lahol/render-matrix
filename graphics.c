@@ -24,8 +24,15 @@ struct _GraphicsHandle {
     int height;
 
     double projection_matrix[16];
+    double projection_matrix_inv[16];
     double rotation_matrix[16];
+    double rotation_matrix_inv[16];
     double scale_vector[4];
+    double translate_vector[3];
+    double translation_x[3];
+    double translation_y[3];
+
+    guint32 inv_projection_valid : 1;
 
     Matrix *matrix_data;
 
@@ -93,14 +100,76 @@ void graphics_recalc_scale_vector(GraphicsHandle *handle)
     handle->scale_vector[3] = 1.0f;
 }
 
+void graphics_calc_inverse_projection(GraphicsHandle *handle)
+{
+    double tmp[16];
+    double vec[16];
+    if (handle->inv_projection_valid == 0) {
+        util_matrix_identify(tmp);
+        /* inverse of scale matrix */
+        vec[0] = 1.0f/handle->scale_vector[0];
+        vec[1] = 1.0f/handle->scale_vector[1];
+        vec[2] = 1.0f/handle->scale_vector[2];
+        vec[3] = 1.0f/handle->scale_vector[3];
+        util_scale_matrix(tmp, vec);
+
+        /* inverse of rotation */
+        util_matrix_multiply(handle->rotation_matrix_inv, tmp, handle->projection_matrix_inv);
+
+        /* inverse of translation */
+        vec[0] = -handle->translate_vector[0];
+        vec[1] = -handle->translate_vector[1];
+        vec[2] = -handle->translate_vector[2];
+        util_translate_matrix(handle->projection_matrix_inv, vec);
+
+        handle->inv_projection_valid = 1;
+    }
+}
+
+void graphics_calc_screen_vectors(GraphicsHandle *handle)
+{
+    double mi[16];
+    double sx, sy, len;
+
+    sx = 2.0f/handle->width;
+    sy = 2.0f/handle->height;
+
+    graphics_calc_inverse_projection(handle);
+    memcpy(mi, handle->projection_matrix_inv, sizeof(double) * 16);
+    util_translate_matrix(mi, handle->translate_vector);
+
+    handle->translation_x[0] = sx * mi[0] + mi[12];
+    handle->translation_x[1] = sx * mi[1] + mi[13];
+
+    handle->translation_y[0] = sy * mi[4] + mi[12];
+    handle->translation_y[1] = sy * mi[5] + mi[13];
+
+    len = sqrt(handle->translation_x[0] * handle->translation_x[0] +
+               handle->translation_x[1] * handle->translation_x[1]);
+    handle->translation_x[0] /= (len * handle->zoom_factor);
+    handle->translation_x[1] /= (len * handle->zoom_factor);
+
+    len = sqrt(handle->translation_y[0] * handle->translation_y[0] +
+               handle->translation_y[1] * handle->translation_y[1]);
+    handle->translation_y[0] /= (len * handle->zoom_factor);
+    handle->translation_y[1] /= (len * handle->zoom_factor);
+}
+
 void graphics_update_camera(GraphicsHandle *handle)
 {
     if (!handle->width || !handle->height)
         return;
     double tmp[16];
     util_matrix_identify(tmp);
+    util_translate_matrix(tmp, handle->translate_vector);
+
     util_matrix_multiply(handle->rotation_matrix, tmp, handle->projection_matrix);
+
     util_scale_matrix(handle->projection_matrix, handle->scale_vector);
+
+    handle->inv_projection_valid = 0;
+
+    graphics_calc_screen_vectors(handle);
 }
 
 void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevation)
@@ -110,7 +179,11 @@ void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevatio
     util_matrix_identify(handle->rotation_matrix);
     util_rotate_matrix(handle->rotation_matrix, azimuth, UTIL_AXIS_Z);
     util_rotate_matrix(handle->rotation_matrix, elevation, UTIL_AXIS_X);
-    
+ 
+    /* set inverse rotation */
+    memcpy(handle->rotation_matrix_inv, handle->rotation_matrix, sizeof(double) * 16);
+    util_transpose_matrix(handle->rotation_matrix_inv);
+
     handle->azimuth = azimuth;
     handle->elevation = elevation;
 
@@ -131,6 +204,18 @@ void graphics_camera_zoom(GraphicsHandle *handle, gint steps)
                                                     1.0f/sqrt(((double)(1 << (-handle->zoom_level-18))));
 
     graphics_recalc_scale_vector(handle);
+    graphics_update_camera(handle);
+}
+
+void graphics_camera_move(GraphicsHandle *handle, double dx, double dy)
+{
+    g_return_if_fail(handle != NULL);
+
+    handle->translate_vector[0] += dx * handle->translation_x[0]
+                                 - dy * handle->translation_y[0];
+    handle->translate_vector[1] += dx * handle->translation_x[1]
+                                 - dy * handle->translation_y[1];
+
     graphics_update_camera(handle);
 }
 
@@ -165,6 +250,10 @@ GraphicsHandle *graphics_init(void)
     handle->scale_vector[1] = 1.0;
     handle->scale_vector[2] = 1.0;
     handle->scale_vector[3] = 1.0;
+
+    handle->translate_vector[0] = 0.0f;
+    handle->translate_vector[1] = 0.0f;
+    handle->translate_vector[2] = 0.0f;
 
     handle->zoom_factor = 512.0f;
     handle->zoom_level = 0;
