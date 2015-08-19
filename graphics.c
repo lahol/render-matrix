@@ -284,6 +284,80 @@ void graphics_world_to_screen(GraphicsHandle *handle,
     if (sz) *sz = vs[2];
 }
 
+void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr)
+{
+    double wx = (handle->azimuth > 0 && handle->azimuth <= 180) ? -0.5f : 0.5f;
+    double wy = (handle->azimuth > 90 && handle->azimuth <= 270) ? 0.5f : -0.5f;
+    if (handle->elevation > 0) {
+        wx = -wx;
+        wy = -wy;
+    }
+    double z_floor = handle->min * handle->z_scale;
+
+    /* which axis is left and should be shifted -width */
+    int shift_axis_x = 0;
+    /* if elevation > 0 also shift both labels by height */
+    int shift_axis_y = 0;
+
+    if ((handle->azimuth > 0 && handle->azimuth <= 90) ||
+        (handle->azimuth > 180 && handle->azimuth <= 270)) {
+        shift_axis_x = 1;
+    }
+
+    if (handle->elevation > 0) {
+        shift_axis_x = 1 - shift_axis_x;
+        shift_axis_y = 1;
+    }
+
+    double sx, sy;
+    double shift_x, shift_y;
+    gchar buf[128];
+
+    double x;
+
+    PangoLayout *layout;
+    PangoFontDescription *desc;
+
+    layout = pango_cairo_create_layout(cr);
+    desc = pango_font_description_from_string("Sans 8");
+    pango_layout_set_font_description(layout, desc);
+    pango_font_description_free(desc);
+
+    PangoRectangle extents;
+
+    cairo_save(cr);
+
+    for (x = -0.5f; x <= 0.51f; x += 0.2f) {
+        cairo_set_source_rgb(cr, 0.5f, 0.5f, 0.5f);
+        sprintf(buf, "%d", (int)((x+0.5f)*handle->matrix_data->n_columns));
+        pango_layout_set_markup(layout, buf, -1);
+        pango_layout_get_pixel_extents(layout, NULL, &extents);
+        graphics_world_to_screen(handle, x, wy, z_floor, &sx, &sy, NULL);
+
+        shift_x = shift_axis_x == 0 ? -(double)extents.width - 1.0f : 1.0f;
+        shift_y = (shift_axis_y == 1) ? -(double)extents.height : 0.0f;
+        cairo_move_to(cr, sx + shift_x, sy + shift_y);
+        pango_cairo_update_layout(cr, layout);
+        pango_cairo_show_layout(cr, layout);
+
+        cairo_set_source_rgb(cr, 0.5f, 0.5f, 0.5f);
+        sprintf(buf, "%d", (int)((0.5f-x)*handle->matrix_data->n_rows));
+        pango_layout_set_markup(layout, buf, -1);
+        pango_layout_get_pixel_extents(layout, NULL, &extents);
+        graphics_world_to_screen(handle, wx, x, z_floor, &sx, &sy, NULL);
+
+        shift_x = shift_axis_x == 1 ? -(double)extents.width - 1.0f : 1.0f;
+        shift_y = (shift_axis_y == 1) ? -(double)extents.height : 0.0f;
+        cairo_move_to(cr, sx + shift_x, sy + shift_y);
+        pango_cairo_update_layout(cr, layout);
+        pango_cairo_show_layout(cr, layout);
+    }
+
+    g_object_unref(layout);
+
+    cairo_restore(cr);
+}
+
 void graphics_render_overlay(GraphicsHandle *handle)
 {
     cairo_t *cr = cairo_create(handle->overlay_surface);
@@ -317,6 +391,8 @@ void graphics_render_overlay(GraphicsHandle *handle)
     pango_cairo_show_layout(cr, layout);
 
     g_object_unref(layout);
+
+    graphics_render_overlay_tiks(handle, cr);
 
 
 /* end preparing surface */
