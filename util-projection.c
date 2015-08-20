@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <math.h>
+#include <stdio.h>
 
 void util_matrix_identify(double *matrix)
 {
@@ -92,6 +93,62 @@ void util_get_rotation_matrix(double *matrix, double angle, int axis, double *co
             matrix[10] = n[2] * n[2] * (1 - cos_x) + cos_x;
             break;
     }
+}
+
+/* compute azimuth, elevation, tilt from (transposed) rotation matrix */
+/* transformation is expected in the form
+ *  1. azimuth around z-axis
+ *  2. elevation around x-axis 
+ *  3. tilt */
+void util_rotation_matrix_get_eulerian_angels(double *matrix, double *angles)
+{
+#if 0
+    /* get angle and axis */
+    double theta = acos(0.5f * (matrix[0] + matrix[5] + matrix[10] - 1.0f));
+    double sin_t = 0.5f/sin(theta);
+    double n[3] = {
+        (matrix[6] - matrix[9]) * sin_t,
+        (matrix[8] - matrix[2]) * sin_t,
+        (matrix[1] - matrix[4]) * sin_t
+    };
+
+    /* n is either of length 1 or 0 (i.e. identity matrix) */
+    if (n[0]*n[0] + n[1]*n[1] + n[2]*n[2] < 0.001f) {
+        angles[0] = angles[1] = angles[2] = 0.0f;
+        return;
+    }
+#endif
+    double azimuth = 0, elevation = 0, tilt = 0;
+
+    /* multiply rotation matrices and compare entries; take care of sign of cos(elevation) = a_33 */
+    /* unique up to sign of acos(matrix[10]) */
+    elevation = M_PI - acos(-matrix[10]);
+    double sin_e = sqrt(1.0f - matrix[10] * matrix[10]);
+    fprintf(stderr, "sin_e: %f\n", sin_e);
+    if (sin_e < 0.0001f) {
+        /* no real elavation (azimuth + tilt) not uniquely defined*/
+        azimuth = acos(matrix[0]);
+        if (matrix[1] < 0)
+            azimuth = -azimuth;
+        tilt = 0.0f;
+    }
+    else {
+        tilt = M_PI - acos(-matrix[9]/sin_e);
+        if (matrix[8] > 0)
+            tilt = -tilt;
+        if (tilt < 0.0001f && tilt > -0.0001f)
+            tilt = 0.0f;
+        azimuth = M_PI - acos(matrix[6]/sin_e);
+        if (matrix[2] > 0)
+            azimuth = 2*M_PI - azimuth;
+
+        if ((tilt >= 0 && matrix[8] <= 0) || (tilt <= 0 && matrix[8] >= 0))
+            elevation = -elevation;
+    }
+
+    angles[0] = azimuth * 180.0f * M_1_PI;
+    angles[1] = elevation * 180.0f * M_1_PI;
+    angles[2] = tilt * 180.0f * M_1_PI;
 }
 
 void util_matrix_multiply(double *A, double *B, double *target)

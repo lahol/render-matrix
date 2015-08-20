@@ -19,6 +19,18 @@
 #include "util-projection.h"
 #include "util-png.h"
 
+#define ALMOST_EQUAL(a,b) ((a)-(b) < 0.001f && (b)-(a) < 0.001f)
+
+#ifdef DEBUG
+void print_matrix(double *m)
+{
+    int i;
+    for (i = 0; i < 16; i+=4) {
+        g_print("%f %f %f %f\n", m[i+0], m[i+1], m[i+2], m[i+3]);
+    }
+}
+#endif
+
 struct _GraphicsHandle {
     int width;
     int height;
@@ -181,6 +193,7 @@ void graphics_update_camera(GraphicsHandle *handle)
 {
     if (!handle->width || !handle->height)
         return;
+    double angles[3];
     util_matrix_identify(handle->projection_matrix);
     util_translate_matrix(handle->projection_matrix, handle->translation_vector);
     if (handle->in_tmp_translation)
@@ -192,6 +205,11 @@ void graphics_update_camera(GraphicsHandle *handle)
                              handle->projection_matrix,
                              handle->projection_matrix);
 
+    util_rotation_matrix_get_eulerian_angels(handle->projection_matrix, angles);
+    handle->azimuth = angles[0];
+    handle->elevation = angles[1];
+   /* handle->tilt = angles[2];*/
+
     util_scale_matrix(handle->projection_matrix, handle->scale_vector);
 
     handle->inv_projection_valid = 0;
@@ -199,14 +217,20 @@ void graphics_update_camera(GraphicsHandle *handle)
     graphics_calc_screen_vectors(handle);
 }
 
-void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevation)
+void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevation, double tilt)
 {
     g_return_if_fail(handle != NULL);
 
+    double vec[3];
+
     util_matrix_identify(handle->rotation_matrix);
     util_rotate_matrix(handle->rotation_matrix, azimuth, UTIL_AXIS_Z, NULL);
+
     util_rotate_matrix(handle->rotation_matrix, elevation, UTIL_AXIS_X, NULL);
- 
+
+    util_rotate_matrix(handle->rotation_matrix, tilt, UTIL_AXIS_Z, NULL);
+
+
     /* set inverse rotation */
     memcpy(handle->rotation_matrix_inv, handle->rotation_matrix, sizeof(double) * 16);
     util_transpose_matrix(handle->rotation_matrix_inv);
@@ -327,16 +351,6 @@ void graphics_camera_arcball_rotate_start(GraphicsHandle *handle, double x, doub
     handle->start_screen_pos[1] = y;
 }
 
-#ifdef DEBUG
-void print_matrix(double *m)
-{
-    int i;
-    for (i = 0; i < 16; i+=4) {
-        g_print("%f %f %f %f\n", m[i+0], m[i+1], m[i+2], m[i+3]);
-    }
-}
-#endif
-
 void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, double y)
 {
     g_return_if_fail(handle != NULL);
@@ -344,12 +358,19 @@ void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, dou
     if (!handle->in_tmp_rotation)
         return;
 
+    if (ALMOST_EQUAL(handle->start_screen_pos[0], x) ||
+        ALMOST_EQUAL(handle->start_screen_pos[1], y)) {
+        util_matrix_identify(handle->tmp_rotation_matrix);
+        util_matrix_identify(handle->tmp_rotation_matrix_inv);
+        return;
+    }
+
     double p0[3], p1[3];
     graphics_arcball_convert(handle, handle->start_screen_pos[0], handle->start_screen_pos[1], p0);
     graphics_arcball_convert(handle, x, y, p1);
 
     double dotprod = p0[0] * p1[0] + p0[1] * p1[1] + p0[2] * p1[2];
-    double angle = acos(dotprod) * 180.0f/M_PI;
+    double angle = acos(dotprod) * 180.0f * M_1_PI;
 
     double axis[3] = {
         p0[1] * p1[2] - p0[2] * p1[1],
@@ -371,6 +392,12 @@ void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, dou
     if (!handle->in_tmp_rotation)
         return;
 
+    if (ALMOST_EQUAL(handle->start_screen_pos[0], x) ||
+        ALMOST_EQUAL(handle->start_screen_pos[1], y)) {
+        handle->in_tmp_rotation = 0;
+        return;
+    }
+
     handle->in_tmp_rotation = 0;
 
     double p0[3], p1[3];
@@ -378,7 +405,7 @@ void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, dou
     graphics_arcball_convert(handle, x, y, p1);
 
     double dotprod = p0[0] * p1[0] + p0[1] * p1[1] + p0[2] * p1[2];
-    double angle = acos(dotprod) * 180.0f/M_PI;
+    double angle = acos(dotprod) * 180.0f * M_1_PI;
     double axis[3] = {
         p0[1] * p1[2] - p0[2] * p1[1],
         p0[2] * p1[0] - p0[0] * p1[2],

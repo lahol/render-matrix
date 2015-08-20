@@ -11,6 +11,7 @@ void util_rotate_matrix(double *matrix, double angle, int axis, double *coords);
 void util_scale_matrix(double *matrix, double *scale_v);
 void util_translate_matrix(double *matrix, double *translate_v);
 void util_get_rotation_matrix(double *matrix, double angle, int axis, double *coords);
+void util_rotation_matrix_get_eulerian_angels(double *matrix, double *angles);
 void util_matrix_multiply(double *A, double *B, double *target);
 void util_transpose_matrix(double *matrix);
 void util_vector_matrix_multiply(double *vect, double *matrix, double *target);
