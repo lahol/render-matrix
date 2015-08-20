@@ -28,11 +28,19 @@ struct _GraphicsHandle {
     double rotation_matrix[16];
     double rotation_matrix_inv[16];
     double scale_vector[4];
-    double translate_vector[3];
+    double translation_vector[3];
     double translation_x[3];
     double translation_y[3];
 
+    double tmp_rotation_matrix[16];
+    double tmp_rotation_matrix_inv[16];
+    double tmp_translation_vector[3];
+
+    double start_screen_pos[2];
+
     guint32 inv_projection_valid : 1;
+    guint32 in_tmp_rotation : 1;
+    guint32 in_tmp_translation : 1;
 
     Matrix *matrix_data;
 
@@ -96,30 +104,42 @@ void graphics_recalc_scale_vector(GraphicsHandle *handle)
         return;
     handle->scale_vector[0] = (2.0f/handle->width) * handle->zoom_factor;
     handle->scale_vector[1] = (2.0f/handle->height) * handle->zoom_factor;
-    handle->scale_vector[2] = 0.001f * handle->zoom_factor;
+    handle->scale_vector[2] = 0.0001f * handle->zoom_factor;
     handle->scale_vector[3] = 1.0f;
 }
 
 void graphics_calc_inverse_projection(GraphicsHandle *handle)
 {
-    double tmp[16];
     double vec[16];
     if (handle->inv_projection_valid == 0) {
-        util_matrix_identify(tmp);
+        util_matrix_identify(handle->projection_matrix_inv);
         /* inverse of scale matrix */
         vec[0] = 1.0f/handle->scale_vector[0];
         vec[1] = 1.0f/handle->scale_vector[1];
         vec[2] = 1.0f/handle->scale_vector[2];
         vec[3] = 1.0f/handle->scale_vector[3];
-        util_scale_matrix(tmp, vec);
+        util_scale_matrix(handle->projection_matrix_inv, vec);
 
         /* inverse of rotation */
-        util_matrix_multiply(handle->rotation_matrix_inv, tmp, handle->projection_matrix_inv);
+        if (handle->in_tmp_rotation) {
+            util_matrix_multiply(handle->tmp_rotation_matrix_inv,
+                                 handle->projection_matrix_inv,
+                                 handle->projection_matrix_inv);
+        }
+        util_matrix_multiply(handle->rotation_matrix_inv,
+                             handle->projection_matrix_inv,
+                             handle->projection_matrix_inv);
 
         /* inverse of translation */
-        vec[0] = -handle->translate_vector[0];
-        vec[1] = -handle->translate_vector[1];
-        vec[2] = -handle->translate_vector[2];
+        if (handle->in_tmp_translation) {
+            vec[0] = -handle->tmp_translation_vector[0];
+            vec[1] = -handle->tmp_translation_vector[1];
+            vec[2] = -handle->tmp_translation_vector[2];
+            util_translate_matrix(handle->projection_matrix_inv, vec);
+        }
+        vec[0] = -handle->translation_vector[0];
+        vec[1] = -handle->translation_vector[1];
+        vec[2] = -handle->translation_vector[2];
         util_translate_matrix(handle->projection_matrix_inv, vec);
 
         handle->inv_projection_valid = 1;
@@ -136,7 +156,9 @@ void graphics_calc_screen_vectors(GraphicsHandle *handle)
 
     graphics_calc_inverse_projection(handle);
     memcpy(mi, handle->projection_matrix_inv, sizeof(double) * 16);
-    util_translate_matrix(mi, handle->translate_vector);
+    util_translate_matrix(mi, handle->translation_vector);
+    if (handle->in_tmp_translation)
+        util_translate_matrix(mi, handle->tmp_translation_vector);
 
     handle->translation_x[0] = sx * mi[0] + mi[12];
     handle->translation_x[1] = sx * mi[1] + mi[13];
@@ -159,11 +181,16 @@ void graphics_update_camera(GraphicsHandle *handle)
 {
     if (!handle->width || !handle->height)
         return;
-    double tmp[16];
-    util_matrix_identify(tmp);
-    util_translate_matrix(tmp, handle->translate_vector);
+    util_matrix_identify(handle->projection_matrix);
+    util_translate_matrix(handle->projection_matrix, handle->translation_vector);
+    if (handle->in_tmp_translation)
+        util_translate_matrix(handle->projection_matrix, handle->tmp_translation_vector);
 
-    util_matrix_multiply(handle->rotation_matrix, tmp, handle->projection_matrix);
+    util_matrix_multiply(handle->rotation_matrix, handle->projection_matrix, handle->projection_matrix);
+    if (handle->in_tmp_rotation)
+        util_matrix_multiply(handle->tmp_rotation_matrix, 
+                             handle->projection_matrix,
+                             handle->projection_matrix);
 
     util_scale_matrix(handle->projection_matrix, handle->scale_vector);
 
@@ -177,8 +204,8 @@ void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevatio
     g_return_if_fail(handle != NULL);
 
     util_matrix_identify(handle->rotation_matrix);
-    util_rotate_matrix(handle->rotation_matrix, azimuth, UTIL_AXIS_Z);
-    util_rotate_matrix(handle->rotation_matrix, elevation, UTIL_AXIS_X);
+    util_rotate_matrix(handle->rotation_matrix, azimuth, UTIL_AXIS_Z, NULL);
+    util_rotate_matrix(handle->rotation_matrix, elevation, UTIL_AXIS_X, NULL);
  
     /* set inverse rotation */
     memcpy(handle->rotation_matrix_inv, handle->rotation_matrix, sizeof(double) * 16);
@@ -207,14 +234,165 @@ void graphics_camera_zoom(GraphicsHandle *handle, gint steps)
     graphics_update_camera(handle);
 }
 
-void graphics_camera_move(GraphicsHandle *handle, double dx, double dy)
+void graphics_camera_move_start(GraphicsHandle *handle, double x, double y)
 {
     g_return_if_fail(handle != NULL);
 
-    handle->translate_vector[0] += dx * handle->translation_x[0]
-                                 - dy * handle->translation_y[0];
-    handle->translate_vector[1] += dx * handle->translation_x[1]
-                                 - dy * handle->translation_y[1];
+    handle->in_tmp_translation = 1;
+    handle->start_screen_pos[0] = x;
+    handle->start_screen_pos[1] = y;
+
+    handle->tmp_translation_vector[0] = 0.0f;
+    handle->tmp_translation_vector[1] = 0.0f;
+    handle->tmp_translation_vector[2] = 0.0f;
+}
+
+void graphics_camera_move_update(GraphicsHandle *handle, double x, double y)
+{
+    g_return_if_fail(handle != NULL);
+
+    if (!handle->in_tmp_translation)
+        return;
+
+    double dx = x - handle->start_screen_pos[0];
+    double dy = y - handle->start_screen_pos[1];
+
+    handle->tmp_translation_vector[0] =   dx * handle->translation_x[0]
+                                        - dy * handle->translation_y[0];
+    handle->tmp_translation_vector[1] =   dx * handle->translation_x[1]
+                                        - dy * handle->translation_y[1];
+
+    graphics_update_camera(handle);
+}
+
+void graphics_camera_move_finish(GraphicsHandle *handle, double x, double y)
+{
+    g_return_if_fail(handle != NULL);
+
+    if (!handle->in_tmp_translation)
+        return;
+
+    double dx = x - handle->start_screen_pos[0];
+    double dy = y - handle->start_screen_pos[1];
+
+    handle->translation_vector[0] += dx * handle->translation_x[0]
+                                   - dy * handle->translation_y[0];
+    handle->translation_vector[1] += dx * handle->translation_x[1]
+                                   - dy * handle->translation_y[1];
+
+    handle->in_tmp_translation = 0;
+
+    graphics_update_camera(handle);
+}
+
+void graphics_arcball_convert(GraphicsHandle *handle, double x, double y, double *v)
+{
+/*    v[0] = 2.0f * x / handle->width - 1.0f;
+    v[1] = 1.0f - 2.0f * y / handle->height;
+
+    double len = v[0] * v[0] + v[1] * v[1];
+    if (len <= 1.0f) {
+        v[2] = sqrt(1.0f - len);
+    }
+    else {
+        len = sqrt(len);
+        v[0] /= len;
+        v[1] /= len;
+        v[2] = 0.0f;
+    }*/
+    double radius = handle->width >= handle->height ? 0.5f * handle->height : 0.5f * handle->width;
+    v[0] = (x - 0.5f * handle->width) / radius;
+    v[1] = (0.5f * handle->height - y) / radius;
+    double len = v[0] * v[0] + v[1] * v[1];
+    if (len <= 1.0f) {
+        v[2] = sqrt(1.0f - len);
+    }
+    else {
+        len = sqrt(len);
+        v[0] /= len;
+        v[1] /= len;
+        v[2] = 0.0f;
+    }
+}
+
+void graphics_camera_arcball_rotate_start(GraphicsHandle *handle, double x, double y)
+{
+    g_return_if_fail(handle != NULL);
+
+    handle->in_tmp_rotation = 1;
+    util_matrix_identify(handle->tmp_rotation_matrix);
+    util_matrix_identify(handle->tmp_rotation_matrix_inv);
+
+    handle->start_screen_pos[0] = x;
+    handle->start_screen_pos[1] = y;
+}
+
+#ifdef DEBUG
+void print_matrix(double *m)
+{
+    int i;
+    for (i = 0; i < 16; i+=4) {
+        g_print("%f %f %f %f\n", m[i+0], m[i+1], m[i+2], m[i+3]);
+    }
+}
+#endif
+
+void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, double y)
+{
+    g_return_if_fail(handle != NULL);
+
+    if (!handle->in_tmp_rotation)
+        return;
+
+    double p0[3], p1[3];
+    graphics_arcball_convert(handle, handle->start_screen_pos[0], handle->start_screen_pos[1], p0);
+    graphics_arcball_convert(handle, x, y, p1);
+
+    double dotprod = p0[0] * p1[0] + p0[1] * p1[1] + p0[2] * p1[2];
+    double angle = acos(dotprod) * 180.0f/M_PI;
+
+    double axis[3] = {
+        p0[1] * p1[2] - p0[2] * p1[1],
+        p0[2] * p1[0] - p0[0] * p1[2],
+        p0[0] * p1[1] - p0[1] * p1[0]
+    };
+
+    util_get_rotation_matrix(handle->tmp_rotation_matrix, angle, UTIL_AXIS_CUSTOM, axis);
+    memcpy(handle->tmp_rotation_matrix_inv, handle->tmp_rotation_matrix, sizeof(double) * 16);
+    util_transpose_matrix(handle->tmp_rotation_matrix_inv);
+
+    graphics_update_camera(handle);
+}
+
+void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, double y)
+{
+    g_return_if_fail(handle != NULL);
+
+    if (!handle->in_tmp_rotation)
+        return;
+
+    handle->in_tmp_rotation = 0;
+
+    double p0[3], p1[3];
+    graphics_arcball_convert(handle, handle->start_screen_pos[0], handle->start_screen_pos[1], p0);
+    graphics_arcball_convert(handle, x, y, p1);
+
+    double dotprod = p0[0] * p1[0] + p0[1] * p1[1] + p0[2] * p1[2];
+    double angle = acos(dotprod) * 180.0f/M_PI;
+    double axis[3] = {
+        p0[1] * p1[2] - p0[2] * p1[1],
+        p0[2] * p1[0] - p0[0] * p1[2],
+        p0[0] * p1[1] - p0[1] * p1[0]
+    };
+
+    util_get_rotation_matrix(handle->tmp_rotation_matrix, angle, UTIL_AXIS_CUSTOM, axis);
+    memcpy(handle->tmp_rotation_matrix_inv, handle->tmp_rotation_matrix, sizeof(double) * 16);
+    util_transpose_matrix(handle->tmp_rotation_matrix_inv);
+
+    util_matrix_multiply(handle->tmp_rotation_matrix, handle->rotation_matrix, handle->rotation_matrix);
+    util_matrix_multiply(handle->rotation_matrix_inv, handle->tmp_rotation_matrix_inv, handle->rotation_matrix_inv);
+
+    handle->in_tmp_rotation = 0;
 
     graphics_update_camera(handle);
 }
@@ -251,9 +429,9 @@ GraphicsHandle *graphics_init(void)
     handle->scale_vector[2] = 1.0;
     handle->scale_vector[3] = 1.0;
 
-    handle->translate_vector[0] = 0.0f;
-    handle->translate_vector[1] = 0.0f;
-    handle->translate_vector[2] = 0.0f;
+    handle->translation_vector[0] = 0.0f;
+    handle->translation_vector[1] = 0.0f;
+    handle->translation_vector[2] = 0.0f;
 
     handle->zoom_factor = 512.0f;
     handle->zoom_level = 0;

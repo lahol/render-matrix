@@ -14,7 +14,14 @@ void graphics_set_window_size(GraphicsHandle *handle, int width, int height);
 
 void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevation);
 void graphics_camera_zoom(GraphicsHandle *handle, gint steps);
-void graphics_camera_move(GraphicsHandle *handle, double dx, double dy);
+
+void graphics_camera_move_start(GraphicsHandle *handle, double dx, double dy);
+void graphics_camera_move_update(GraphicsHandle *handle, double dx, double dy);
+void graphics_camera_move_finish(GraphicsHandle *handle, double dx, double dy);
+
+void graphics_camera_arcball_rotate_start(GraphicsHandle *handle, double x, double y);
+void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, double y);
+void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, double y);
 
 void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix);
 

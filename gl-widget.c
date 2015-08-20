@@ -138,6 +138,7 @@ static void gl_widget_realize(GtkWidget *widget)
     gdk_window_set_events(gdkwin,
                           gdk_window_get_events(gdkwin) |
                           GDK_BUTTON_PRESS_MASK |
+                          GDK_BUTTON_RELEASE_MASK |
                           GDK_POINTER_MOTION_MASK |
                           GDK_SCROLL_MASK);
 /*[end < 3.16]*/
@@ -159,9 +160,25 @@ static gboolean gl_widget_button_press_event(GtkWidget *widget, GdkEventButton *
 {
     GlWidgetPrivate *priv = GL_WIDGET(widget)->priv;
     if (event->button == 3) {
-        priv->last_x = event->x;
-        priv->last_y = event->y;
+        graphics_camera_move_start(priv->graphics_handle, event->x, event->y);
     }
+    else if (event->button == 1) {
+        graphics_camera_arcball_rotate_start(priv->graphics_handle, event->x, event->y);
+    }
+    return FALSE;
+}
+
+static gboolean gl_widget_button_release_event(GtkWidget *widget, GdkEventButton *event)
+{
+    GlWidgetPrivate *priv = GL_WIDGET(widget)->priv;
+    if (event->button == 3) {
+        graphics_camera_move_finish(priv->graphics_handle, event->x, event->y);
+    }
+    else if (event->button == 1) {
+        graphics_camera_arcball_rotate_finish(priv->graphics_handle, event->x, event->y);
+    }
+
+    gtk_widget_queue_draw(widget);
     return FALSE;
 }
 
@@ -169,13 +186,13 @@ static gboolean gl_widget_motion_notify_event(GtkWidget *widget, GdkEventMotion 
 {
     GlWidgetPrivate *priv = GL_WIDGET(widget)->priv;
     if (event->state & GDK_BUTTON3_MASK) {
-        graphics_camera_move(priv->graphics_handle,
-                event->x - priv->last_x,
-                event->y - priv->last_y);
-        priv->last_x = event->x;
-        priv->last_y = event->y;
-        gtk_widget_queue_draw(widget);
+        graphics_camera_move_update(priv->graphics_handle, event->x, event->y);
     }
+    else if (event->state & GDK_BUTTON1_MASK) {
+        graphics_camera_arcball_rotate_update(priv->graphics_handle, event->x, event->y);
+    }
+
+    gtk_widget_queue_draw(widget);
     return FALSE;
 }
 
@@ -195,6 +212,7 @@ static void gl_widget_class_init(GlWidgetClass *klass)
     gtkwidget_class->draw = gl_widget_draw;
     gtkwidget_class->scroll_event = gl_widget_scroll_event; /* button_press_event, key_press_event … */
     gtkwidget_class->button_press_event = gl_widget_button_press_event;
+    gtkwidget_class->button_release_event = gl_widget_button_release_event;
     gtkwidget_class->motion_notify_event = gl_widget_motion_notify_event;
 
     g_object_class_install_property(gobject_class,
