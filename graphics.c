@@ -110,6 +110,13 @@ void color_gradient_rgb(double hue, double *rgb)
 #undef _N_COLORS
 }
 
+void graphics_get_far_planes(GraphicsHandle *handle, double *planes)
+{
+    planes[0] = handle->projection_matrix[2] >= 0 ? -0.5f : 0.5f;
+    planes[1] = handle->projection_matrix[6] >= 0 ? -0.5f : 0.5f;
+    planes[2] = handle->projection_matrix[10] >= 0 ? handle->min * handle->z_scale : handle->max * handle->z_scale;
+}
+
 void graphics_recalc_scale_vector(GraphicsHandle *handle)
 {
     if (!handle->width || !handle->height)
@@ -561,13 +568,11 @@ void graphics_world_to_screen(GraphicsHandle *handle,
 
 void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr)
 {
-    double wx = (handle->azimuth > 0 && handle->azimuth <= 180) ? -0.5f : 0.5f;
-    double wy = (handle->azimuth > 90 && handle->azimuth <= 270) ? 0.5f : -0.5f;
-    if (handle->elevation > 0) {
-        wx = -wx;
-        wy = -wy;
-    }
-    double z_floor = handle->min * handle->z_scale;
+    double far_planes[3];
+    graphics_get_far_planes(handle, far_planes);
+    double wx = - far_planes[0];
+    double wy = - far_planes[1];
+    double z_floor = far_planes[2];
 
     /* which axis is left and should be shifted -width */
     int shift_axis_x = 0;
@@ -733,18 +738,16 @@ void graphics_render_grid(GraphicsHandle *handle)
 #endif
     
     double x, z;
-    double wx = (handle->azimuth >= 0 && handle->azimuth <= 180) ? 0.5f : -0.5f;
-    double wy = (handle->azimuth >= 90 && handle->azimuth <= 270) ? -0.5f : 0.5f;
-    if (handle->elevation > 0) {
-        wx = -wx;
-        wy = -wy;
-    }
+    double far_planes[3];
+    graphics_get_far_planes(handle, far_planes);
+    double wx = far_planes[0];
+    double wy = far_planes[1];
 
     /* TODO: offset z to reasonable numbers < min (e.g. 2.17 -> 2.5) */
     double dz = (handle->max - handle->min) * handle->z_scale * 0.2f;
     double z_min = handle->min * handle->z_scale;
     double z_max = handle->max * handle->z_scale;
-    double z_floor = z_min; /* elevation > 0 -> z_max ?? */
+    double z_floor = far_planes[2]; /* elevation > 0 -> z_max ?? */
 
     glLineStipple(1, 0xaaaa);
     glLineWidth(1.0f);
