@@ -160,33 +160,21 @@ void graphics_calc_inverse_projection(GraphicsHandle *handle)
 
 void graphics_calc_screen_vectors(GraphicsHandle *handle)
 {
-    double mi[16];
-    double sx, sy, len;
-
-    sx = 2.0f/handle->width;
-    sy = 2.0f/handle->height;
-
     graphics_calc_inverse_projection(handle);
-    memcpy(mi, handle->projection_matrix_inv, sizeof(double) * 16);
-    util_translate_matrix(mi, handle->translation_vector);
-    if (handle->in_tmp_translation)
-        util_translate_matrix(mi, handle->tmp_translation_vector);
+    double *m = handle->projection_matrix_inv;
 
-    handle->translation_x[0] = sx * mi[0] + mi[12];
-    handle->translation_x[1] = sx * mi[1] + mi[13];
+    /* map one pixel in x/y direction to unit cube [-1,1]^3 */
+    double sx = 2.0f/handle->width;
+    double sy = 2.0f/handle->height;
 
-    handle->translation_y[0] = sy * mi[4] + mi[12];
-    handle->translation_y[1] = sy * mi[5] + mi[13];
+    /* “calculate” inverse projection of the unit vectors screen x, screen y */
+    handle->translation_x[0] = m[0] * sx;
+    handle->translation_x[1] = m[1] * sx;
+    handle->translation_x[2] = m[2] * sx;
 
-    len = sqrt(handle->translation_x[0] * handle->translation_x[0] +
-               handle->translation_x[1] * handle->translation_x[1]);
-    handle->translation_x[0] /= (len * handle->zoom_factor);
-    handle->translation_x[1] /= (len * handle->zoom_factor);
-
-    len = sqrt(handle->translation_y[0] * handle->translation_y[0] +
-               handle->translation_y[1] * handle->translation_y[1]);
-    handle->translation_y[0] /= (len * handle->zoom_factor);
-    handle->translation_y[1] /= (len * handle->zoom_factor);
+    handle->translation_y[0] = m[4] * sy;
+    handle->translation_y[1] = m[5] * sy;
+    handle->translation_y[2] = m[6] * sy;
 }
 
 void graphics_update_camera(GraphicsHandle *handle)
@@ -221,15 +209,12 @@ void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevatio
 {
     g_return_if_fail(handle != NULL);
 
-    double vec[3];
-
     util_matrix_identify(handle->rotation_matrix);
     util_rotate_matrix(handle->rotation_matrix, azimuth, UTIL_AXIS_Z, NULL);
 
     util_rotate_matrix(handle->rotation_matrix, elevation, UTIL_AXIS_X, NULL);
 
     util_rotate_matrix(handle->rotation_matrix, tilt, UTIL_AXIS_Z, NULL);
-
 
     /* set inverse rotation */
     memcpy(handle->rotation_matrix_inv, handle->rotation_matrix, sizeof(double) * 16);
@@ -281,10 +266,13 @@ void graphics_camera_move_update(GraphicsHandle *handle, double x, double y)
     double dx = x - handle->start_screen_pos[0];
     double dy = y - handle->start_screen_pos[1];
 
+    /* update translation; y is given in other direction then in our coordinate system */
     handle->tmp_translation_vector[0] =   dx * handle->translation_x[0]
                                         - dy * handle->translation_y[0];
     handle->tmp_translation_vector[1] =   dx * handle->translation_x[1]
                                         - dy * handle->translation_y[1];
+    handle->tmp_translation_vector[2] =   dx * handle->translation_x[2]
+                                        - dy * handle->translation_y[2];
 
     graphics_update_camera(handle);
 }
@@ -303,6 +291,8 @@ void graphics_camera_move_finish(GraphicsHandle *handle, double x, double y)
                                    - dy * handle->translation_y[0];
     handle->translation_vector[1] += dx * handle->translation_x[1]
                                    - dy * handle->translation_y[1];
+    handle->translation_vector[2] += dx * handle->translation_x[2]
+                                   - dy * handle->translation_y[2];
 
     handle->in_tmp_translation = 0;
 
@@ -311,19 +301,7 @@ void graphics_camera_move_finish(GraphicsHandle *handle, double x, double y)
 
 void graphics_arcball_convert(GraphicsHandle *handle, double x, double y, double *v)
 {
-/*    v[0] = 2.0f * x / handle->width - 1.0f;
-    v[1] = 1.0f - 2.0f * y / handle->height;
-
-    double len = v[0] * v[0] + v[1] * v[1];
-    if (len <= 1.0f) {
-        v[2] = sqrt(1.0f - len);
-    }
-    else {
-        len = sqrt(len);
-        v[0] /= len;
-        v[1] /= len;
-        v[2] = 0.0f;
-    }*/
+    /* map a screen point to a unit ball */
     double radius = handle->width >= handle->height ? 0.5f * handle->height : 0.5f * handle->width;
     v[0] = (x - 0.5f * handle->width) / radius;
     v[1] = (0.5f * handle->height - y) / radius;
@@ -368,6 +346,8 @@ void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, dou
     double p0[3], p1[3];
     graphics_arcball_convert(handle, handle->start_screen_pos[0], handle->start_screen_pos[1], p0);
     graphics_arcball_convert(handle, x, y, p1);
+
+    /* get angle between start point on unit ball and current point, as well as the rotation axis */
 
     double dotprod = p0[0] * p1[0] + p0[1] * p1[1] + p0[2] * p1[2];
     double angle = acos(dotprod) * 180.0f * M_1_PI;
@@ -546,6 +526,7 @@ void graphics_render_matrix(GraphicsHandle *handle)
     glEnd();
 
     glPolygonOffset(-8.0, 5.0);
+    glDisable(GL_LINE_STIPPLE);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glLineWidth(0.5f);
     glBegin(GL_QUADS);
@@ -738,6 +719,18 @@ void graphics_render_grid(GraphicsHandle *handle)
     glVertex3f(0.5f, 0.5f, 0.0f);
     glVertex3f(-0.5f, 0.5f, 0.0f);
     glEnd();
+
+#if DEBUG
+    glLineWidth(4.0f);
+    glBegin(GL_LINES);
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glVertex3f(-0.5f, -0.5f, handle->min * handle->z_scale);
+    glVertex3f(10 * handle->translation_x[0]-0.5f, 10 * handle->translation_x[1]-0.5f, 10 * handle->translation_x[2] + handle->min * handle->z_scale);
+    glColor3f(0.0f, 1.0f, 0.0f);
+    glVertex3f(-0.5f, -0.5f, handle->min * handle->z_scale);
+    glVertex3f(10 * handle->translation_y[0] - 0.5f, 10 * handle->translation_y[1]-0.5f, 10 * handle->translation_y[2] + handle->min * handle->z_scale);
+    glEnd();
+#endif
     
     double x, z;
     double wx = (handle->azimuth >= 0 && handle->azimuth <= 180) ? 0.5f : -0.5f;
@@ -754,6 +747,7 @@ void graphics_render_grid(GraphicsHandle *handle)
     double z_floor = z_min; /* elevation > 0 -> z_max ?? */
 
     glLineStipple(1, 0xaaaa);
+    glLineWidth(1.0f);
     glEnable(GL_LINE_STIPPLE);
     glBegin(GL_LINES);
 

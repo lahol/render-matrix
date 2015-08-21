@@ -18,6 +18,10 @@ ifndef DISABLE_MSAA
 	CFLAGS += -DWITH_MSAA
 endif
 
+ifdef DEBUG
+	CFLAGS += -DDEBUG
+endif
+
 all: render-matrix
 
 render-matrix: $(rm_OBJ)

@@ -124,7 +124,6 @@ void util_rotation_matrix_get_eulerian_angels(double *matrix, double *angles)
     /* unique up to sign of acos(matrix[10]) */
     elevation = M_PI - acos(-matrix[10]);
     double sin_e = sqrt(1.0f - matrix[10] * matrix[10]);
-    fprintf(stderr, "sin_e: %f\n", sin_e);
     if (sin_e < 0.0001f) {
         /* no real elavation (azimuth + tilt) not uniquely defined*/
         azimuth = acos(matrix[0]);
