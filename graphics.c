@@ -306,12 +306,16 @@ void graphics_camera_move_finish(GraphicsHandle *handle, double x, double y)
     graphics_update_camera(handle);
 }
 
-void graphics_arcball_convert(GraphicsHandle *handle, double x, double y, double *v)
+void graphics_arcball_convert(GraphicsHandle *handle, double x, double y, double *v, ArcBallRestriction rst)
 {
     /* map a screen point to a unit ball */
-    double radius = handle->width >= handle->height ? 0.5f * handle->height : 0.5f * handle->width;
-    v[0] = (x - 0.5f * handle->width) / radius;
-    v[1] = (0.5f * handle->height - y) / radius;
+/*    double radius = handle->width >= handle->height ? 0.5f * handle->height : 0.5f * handle->width;*/
+    v[0] = (x - 0.5f * handle->width) / (0.5f * handle->width);/*radius;*/
+    v[1] = (0.5f * handle->height - y) / (0.5f * handle->height);/*radius;*/
+    if (rst == ArcBallRestrictionHorizontal)
+        v[0] = 0.0f;
+    else if (rst == ArcBallRestrictionVertical)
+        v[1] = 0.0f;
     double len = v[0] * v[0] + v[1] * v[1];
     if (len <= 1.0f) {
         v[2] = sqrt(1.0f - len);
@@ -336,14 +340,14 @@ void graphics_camera_arcball_rotate_start(GraphicsHandle *handle, double x, doub
     handle->start_screen_pos[1] = y;
 }
 
-void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, double y)
+void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, double y, ArcBallRestriction rst)
 {
     g_return_if_fail(handle != NULL);
 
     if (!handle->in_tmp_rotation)
         return;
 
-    if (ALMOST_EQUAL(handle->start_screen_pos[0], x) ||
+    if (ALMOST_EQUAL(handle->start_screen_pos[0], x) && 
         ALMOST_EQUAL(handle->start_screen_pos[1], y)) {
         util_matrix_identify(handle->tmp_rotation_matrix);
         util_matrix_identify(handle->tmp_rotation_matrix_inv);
@@ -351,8 +355,8 @@ void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, dou
     }
 
     double p0[3], p1[3];
-    graphics_arcball_convert(handle, handle->start_screen_pos[0], handle->start_screen_pos[1], p0);
-    graphics_arcball_convert(handle, x, y, p1);
+    graphics_arcball_convert(handle, handle->start_screen_pos[0], handle->start_screen_pos[1], p0, rst);
+    graphics_arcball_convert(handle, x, y, p1, rst);
 
     /* get angle between start point on unit ball and current point, as well as the rotation axis */
 
@@ -372,14 +376,14 @@ void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, dou
     graphics_update_camera(handle);
 }
 
-void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, double y)
+void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, double y, ArcBallRestriction rst)
 {
     g_return_if_fail(handle != NULL);
 
     if (!handle->in_tmp_rotation)
         return;
 
-    if (ALMOST_EQUAL(handle->start_screen_pos[0], x) ||
+    if (ALMOST_EQUAL(handle->start_screen_pos[0], x) &&
         ALMOST_EQUAL(handle->start_screen_pos[1], y)) {
         handle->in_tmp_rotation = 0;
         return;
@@ -388,8 +392,8 @@ void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, dou
     handle->in_tmp_rotation = 0;
 
     double p0[3], p1[3];
-    graphics_arcball_convert(handle, handle->start_screen_pos[0], handle->start_screen_pos[1], p0);
-    graphics_arcball_convert(handle, x, y, p1);
+    graphics_arcball_convert(handle, handle->start_screen_pos[0], handle->start_screen_pos[1], p0, rst);
+    graphics_arcball_convert(handle, x, y, p1, rst);
 
     double dotprod = p0[0] * p1[0] + p0[1] * p1[1] + p0[2] * p1[2];
     double angle = acos(dotprod) * 180.0f * M_1_PI;

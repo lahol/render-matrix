@@ -175,7 +175,12 @@ static gboolean gl_widget_button_release_event(GtkWidget *widget, GdkEventButton
         graphics_camera_move_finish(priv->graphics_handle, event->x, event->y);
     }
     else if (event->button == 1) {
-        graphics_camera_arcball_rotate_finish(priv->graphics_handle, event->x, event->y);
+        ArcBallRestriction rst = ArcBallRestrictionNone;
+        if (event->state & GDK_SHIFT_MASK)
+            rst = ArcBallRestrictionVertical;
+        else if (event->state & GDK_CONTROL_MASK)
+            rst = ArcBallRestrictionHorizontal;
+        graphics_camera_arcball_rotate_finish(priv->graphics_handle, event->x, event->y, rst);
     }
 
     gtk_widget_queue_draw(widget);
@@ -189,7 +194,12 @@ static gboolean gl_widget_motion_notify_event(GtkWidget *widget, GdkEventMotion 
         graphics_camera_move_update(priv->graphics_handle, event->x, event->y);
     }
     else if (event->state & GDK_BUTTON1_MASK) {
-        graphics_camera_arcball_rotate_update(priv->graphics_handle, event->x, event->y);
+        ArcBallRestriction rst = ArcBallRestrictionNone;
+        if (event->state & GDK_SHIFT_MASK)
+            rst = ArcBallRestrictionVertical;
+        else if (event->state & GDK_CONTROL_MASK)
+            rst = ArcBallRestrictionHorizontal;
+        graphics_camera_arcball_rotate_update(priv->graphics_handle, event->x, event->y, rst);
     }
 
     gtk_widget_queue_draw(widget);

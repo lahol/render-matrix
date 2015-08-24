@@ -5,6 +5,12 @@
 
 typedef struct _GraphicsHandle GraphicsHandle;
 
+typedef enum {
+    ArcBallRestrictionNone = 0,
+    ArcBallRestrictionVertical,
+    ArcBallRestrictionHorizontal
+} ArcBallRestriction;
+
 GraphicsHandle *graphics_init(void);
 void graphics_cleanup(GraphicsHandle *handle);
 void graphics_render(GraphicsHandle *handle);
@@ -20,8 +26,8 @@ void graphics_camera_move_update(GraphicsHandle *handle, double dx, double dy);
 void graphics_camera_move_finish(GraphicsHandle *handle, double dx, double dy);
 
 void graphics_camera_arcball_rotate_start(GraphicsHandle *handle, double x, double y);
-void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, double y);
-void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, double y);
+void graphics_camera_arcball_rotate_update(GraphicsHandle *handle, double x, double y, ArcBallRestriction rst);
+void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, double y, ArcBallRestriction rst);
 
 void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix);
 
