@@ -651,31 +651,6 @@ void graphics_render_overlay(GraphicsHandle *handle)
     cairo_paint(cr);
     cairo_restore(cr);
 
-/*    cairo_translate(cr, handle->width/2, handle->height/2);
-    cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.7f);
-    cairo_arc(cr, 0, 0, 50, 0, 2 * M_PI);
-    cairo_fill(cr);*/
-
-    PangoLayout *layout;
-    PangoFontDescription *desc;
-
-    cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.7f);
-    layout = pango_cairo_create_layout(cr);
-
-    desc = pango_font_description_from_string("Sans 8");
-    pango_layout_set_font_description(layout, desc);
-    pango_font_description_free(desc);
-
-    pango_layout_set_markup(layout, "Pango/Cairo enabled", -1);
-    PangoRectangle extents;
-    pango_layout_get_pixel_extents(layout, NULL, &extents);
-
-    cairo_translate(cr, extents.x+1.0f, extents.y+1.0f);
-    pango_cairo_update_layout(cr, layout);
-    pango_cairo_show_layout(cr, layout);
-
-    g_object_unref(layout);
-
     graphics_render_overlay_tiks(handle, cr);
 
 
@@ -837,10 +812,10 @@ void graphics_set_window_size(GraphicsHandle *handle, int width, int height)
     graphics_overlay_init(handle);
 }
 
-void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix)
+void graphics_update_matrix_data(GraphicsHandle *handle)
 {
-    handle->matrix_data = matrix;
     /* determine max/min value and set range to scale */
+    Matrix *matrix = handle->matrix_data;
     MatrixIter iter;
     double max, min;
     matrix_iter_init(matrix, &iter);
@@ -861,6 +836,13 @@ void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix)
 
     g_print("max/min/z_scale: %f/%f/%f\n", max, min, handle->z_scale);
     graphics_recalc_scale_vector(handle);
+}
+
+void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix)
+{
+    handle->matrix_data = matrix;
+
+    graphics_update_matrix_data(handle);
 }
 
 void graphics_save_buffer_to_file(GraphicsHandle *handle, const gchar *filename)

@@ -45,6 +45,8 @@ static void matrix_properties_toggled(GtkToggleButton *button, gpointer userdata
         matrix_alternate_signs(appdata.display_matrix,
                 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_shift_signs)));
 
+    graphics_update_matrix_data(appdata.graphics_handle);
+
     gtk_widget_queue_draw(appdata.glwidget);
 }
 
