@@ -18,6 +18,7 @@
 #include "graphics.h"
 #include "util-projection.h"
 #include "util-png.h"
+#include "util-rectangle.h"
 
 #define ALMOST_EQUAL(a,b) ((a)-(b) < 0.001f && (b)-(a) < 0.001f)
 
@@ -68,6 +69,8 @@ struct _GraphicsHandle {
     unsigned int overlay_tex_id;
     unsigned char *overlay_data;
     cairo_surface_t *overlay_surface;
+
+    UtilRectangle render_area;
 };
 
 /* get rgb values for (101->001->011->010->110->100)
@@ -570,7 +573,47 @@ void graphics_world_to_screen(GraphicsHandle *handle,
     if (sz) *sz = vs[2];
 }
 
-void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr)
+void graphics_map_bounding_box(GraphicsHandle *handle, UtilRectangle *bounding_box)
+{
+    double xr[2];
+    double yr[2];
+
+    double z_min = handle->min * handle->z_scale;
+    double z_max = handle->max * handle->z_scale;
+
+    double sx, sy;
+    graphics_world_to_screen(handle, -0.5f, -0.5f, z_min, &sx, &sy, NULL);
+    xr[0] = xr[1] = sx;
+    yr[0] = yr[1] = sy;
+
+#define EXPAND_BOX(wx,wy,wz) do {\
+    graphics_world_to_screen(handle, (wx), (wy), (wz), &sx, &sy, NULL);\
+    if (sx < xr[0]) xr[0] = sx;\
+    if (sx > xr[1]) xr[1] = sx;\
+    if (sy < yr[0]) yr[0] = sy;\
+    if (sy > yr[1]) yr[1] = sy;\
+    } while (0)
+
+    EXPAND_BOX(-0.5f, 0.5f, z_min);
+    EXPAND_BOX(0.5f, 0.5f, z_min);
+    EXPAND_BOX(0.5f, -0.5f, z_min);
+
+    EXPAND_BOX(-0.5f, -0.5f, z_max);
+    EXPAND_BOX(-0.5f, 0.5f, z_max);
+    EXPAND_BOX(0.5f, 0.5f, z_max);
+    EXPAND_BOX(0.5f, -0.5f, z_max);
+
+#undef EXPAND_BOX
+
+    if (bounding_box) {
+        bounding_box->x = xr[0];
+        bounding_box->y = yr[0];
+        bounding_box->width = (xr[1]-xr[0]+1.0f);
+        bounding_box->height = (yr[1]-yr[0]+1.0f);
+    }
+}
+
+void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr, UtilRectangle *bounding_box)
 {
     double far_planes[3];
     graphics_get_far_planes(handle, far_planes);
@@ -608,23 +651,40 @@ void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr)
     pango_font_description_free(desc);
 
     PangoRectangle extents;
+    gboolean initialized = FALSE;
+    double xr[2];
+    double yr[2];
 
     cairo_save(cr);
 
+
+    cairo_set_source_rgb(cr, 0.5f, 0.5f, 0.5f);
     for (x = -0.5f; x <= 0.51f; x += 0.2f) {
-        cairo_set_source_rgb(cr, 0.5f, 0.5f, 0.5f);
+#define UPDATE_RANGE do {\
+    if (sx + shift_x < xr[0]) xr[0] = sx + shift_x;\
+    if (sx + shift_x + extents.width > xr[1]) xr[1] = sx + shift_x + extents.width;\
+    if (sy + shift_y < yr[0]) yr[0] = sy + shift_y;\
+    if (sy + shift_y + extents.height > yr[1]) yr[1] = sy + shift_y + extents.height;\
+    } while(0)
+
         sprintf(buf, "%d", (int)((x+0.5f)*handle->matrix_data->n_columns));
         pango_layout_set_markup(layout, buf, -1);
         pango_layout_get_pixel_extents(layout, NULL, &extents);
         graphics_world_to_screen(handle, x, wy, z_floor, &sx, &sy, NULL);
-
         shift_x = shift_axis_x == 0 ? -(double)extents.width - 1.0f : 1.0f;
         shift_y = (shift_axis_y == 1) ? -(double)extents.height : 0.0f;
         cairo_move_to(cr, sx + shift_x, sy + shift_y);
         pango_cairo_update_layout(cr, layout);
         pango_cairo_show_layout(cr, layout);
+        if (!initialized) {
+            xr[0] = sx + shift_x;
+            xr[1] = xr[0] + (double)extents.width;
+            yr[0] = sy + shift_y;
+            yr[1] = yr[1] + (double)extents.height;
+            initialized = TRUE;
+        }
+        UPDATE_RANGE;
 
-        cairo_set_source_rgb(cr, 0.5f, 0.5f, 0.5f);
         sprintf(buf, "%d", (int)((0.5f-x)*handle->matrix_data->n_rows));
         pango_layout_set_markup(layout, buf, -1);
         pango_layout_get_pixel_extents(layout, NULL, &extents);
@@ -635,14 +695,24 @@ void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr)
         cairo_move_to(cr, sx + shift_x, sy + shift_y);
         pango_cairo_update_layout(cr, layout);
         pango_cairo_show_layout(cr, layout);
+        UPDATE_RANGE;
+
+#undef UPDATE_RANGE
     }
 
     g_object_unref(layout);
 
     cairo_restore(cr);
+
+    if (bounding_box) {
+        bounding_box->x = xr[0];
+        bounding_box->y = yr[0];
+        bounding_box->width = (xr[1] - xr[0] + 1.0f);
+        bounding_box->height = (yr[1] - yr[0] + 1.0f);
+    }
 }
 
-void graphics_render_overlay(GraphicsHandle *handle)
+void graphics_render_overlay(GraphicsHandle *handle, UtilRectangle *bounding_box)
 {
     cairo_t *cr = cairo_create(handle->overlay_surface);
     /* clear surface */
@@ -651,7 +721,29 @@ void graphics_render_overlay(GraphicsHandle *handle)
     cairo_paint(cr);
     cairo_restore(cr);
 
-    graphics_render_overlay_tiks(handle, cr);
+    UtilRectangle box_tiks;
+    graphics_render_overlay_tiks(handle, cr, &box_tiks);
+
+    if (bounding_box) *bounding_box = box_tiks;
+
+#ifdef DEBUG
+    cairo_set_source_rgb(cr, 0.0f, 1.0f, 0.0f);
+    cairo_rectangle(cr, box_tiks.x, box_tiks.y, box_tiks.width, box_tiks.height);
+    cairo_stroke(cr);
+
+    UtilRectangle box_render;
+    graphics_map_bounding_box(handle, &box_render);
+    cairo_set_source_rgb(cr, 1.0f, 0.0f, 0.0f);
+    cairo_rectangle(cr, box_render.x, box_render.y, box_render.width, box_render.height);
+    cairo_stroke(cr);
+
+    util_rectangle_bounds(&box_render, &box_render, &box_tiks);
+    UtilRectangle crop = { 0.0f, 0.0f, handle->width, handle->height };
+    util_rectangle_crop(&box_render, &crop);
+    cairo_set_source_rgb(cr, 0.0f, 0.0f, 1.0f);
+    cairo_rectangle(cr, box_render.x, box_render.y, box_render.width, box_render.height);
+    cairo_stroke(cr);
+#endif
 
 
 /* end preparing surface */
@@ -795,11 +887,18 @@ void graphics_render(GraphicsHandle *handle)
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
+    UtilRectangle overlay_box;
+
     graphics_render_grid(handle);
     graphics_render_matrix(handle);
-    graphics_render_overlay(handle);
+    graphics_render_overlay(handle, &overlay_box);
 
     glFinish();
+
+    graphics_map_bounding_box(handle, &handle->render_area);
+    util_rectangle_bounds(&handle->render_area, &handle->render_area, &overlay_box);
+    UtilRectangle crop = { 0.0f, 0.0f, handle->width, handle->height };
+    util_rectangle_crop(&handle->render_area, &crop);
 }
 
 void graphics_set_window_size(GraphicsHandle *handle, int width, int height)
