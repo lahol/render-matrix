@@ -949,10 +949,21 @@ void graphics_save_buffer_to_file(GraphicsHandle *handle, const gchar *filename)
     g_return_if_fail(handle != NULL);
     g_return_if_fail(filename != NULL);
 
-    guchar *buffer = g_malloc(handle->width * handle->height * 4);
+    /*
     glReadPixels(0, 0, handle->width, handle->height,
+            GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, buffer);*/
+    int offset[2] = { floor(handle->render_area.x), floor(handle->render_area.y) };
+    int size[2] = { ceil(handle->render_area.width), ceil(handle->render_area.height) };
+    if (offset[0] + size[0] > handle->width)
+        size[0] = handle->width - offset[0];
+    if (offset[1] + size[1] > handle->height)
+        size[1] = handle->height - offset[1];
+    offset[1] = handle->height - offset[1] - size[1];
+
+    guchar *buffer = g_malloc(size[0] * size[1] * 4);
+    glReadPixels(offset[0], offset[1], size[0], size[1],
             GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, buffer);
 
-    util_write_to_png(filename, buffer, handle->width, handle->height);
+    util_write_to_png(filename, buffer, size[0], size[1]);
     g_free(buffer);
 }
