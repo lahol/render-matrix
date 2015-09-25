@@ -1,6 +1,7 @@
 #include "matrix.h"
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 Matrix *matrix_new(void)
 {
@@ -260,5 +261,17 @@ void matrix_alternate_signs(Matrix *matrix, gboolean do_shift)
             matrix_get_iter(matrix, &iter, i, j);
             matrix->chunks[iter.chunk][iter.offset] = - matrix->chunks[iter.chunk][iter.offset];
         }
+    }
+}
+
+void matrix_log_scale(Matrix *matrix)
+{
+    MatrixIter iter;
+
+    for (matrix_get_iter(matrix, &iter, 0, 0); matrix_iter_is_valid(matrix, &iter); matrix_iter_next(matrix, &iter)) {
+        if (matrix->chunks[iter.chunk][iter.offset] > 0)
+            matrix->chunks[iter.chunk][iter.offset] = log(matrix->chunks[iter.chunk][iter.offset] + 1.0f);
+        else if (matrix->chunks[iter.chunk][iter.offset] < 0)
+            matrix->chunks[iter.chunk][iter.offset] = - log( - matrix->chunks[iter.chunk][iter.offset] + 1.0f);
     }
 }
