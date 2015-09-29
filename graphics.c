@@ -705,7 +705,7 @@ void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr, UtilRecta
                 initialized = TRUE;
             }
             UPDATE_RANGE_SIMPLE;
-            callback(sx, sy,
+            callback(sx + (shift_axis_x ? 1.0f : -1.0f), sy,
                      (shift_axis_x ? TiksAlignLeft : TiksAlignRight) |
                      (shift_axis_y ? TiksAlignTop : TiksAlignBottom),
                      buf, userdata);
@@ -726,8 +726,8 @@ void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr, UtilRecta
         }
         else {
             UPDATE_RANGE_SIMPLE;
-            callback(sx, sy,
-                     (shift_axis_x ? TiksAlignLeft : TiksAlignRight) |
+            callback(sx + (shift_axis_x ? -1.0f : 1.0f), sy,
+                     (shift_axis_x ? TiksAlignRight : TiksAlignLeft) |
                      (shift_axis_y ? TiksAlignTop : TiksAlignBottom),
                      buf, userdata);
         }
@@ -1007,3 +1007,12 @@ void graphics_save_buffer_to_file(GraphicsHandle *handle, const gchar *filename)
     util_write_to_png(filename, buffer, size[0], size[1]);
     g_free(buffer);
 }
+
+void graphics_get_render_area(GraphicsHandle *handle, UtilRectangle *render_area)
+{
+    g_return_if_fail(handle != NULL);
+    g_return_if_fail(render_area != NULL);
+
+    *render_area = handle->render_area;
+}
+

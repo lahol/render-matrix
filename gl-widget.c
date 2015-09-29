@@ -294,12 +294,103 @@ GtkWidget *gl_widget_new(GraphicsHandle *handle)
     return g_object_new(GL_WIDGET_TYPE, "graphics-handle", handle, NULL);
 }
 
+/* FIXME: The following should be somewhere else. Saving to file is not the job of the widget implementation.
+ * When we manage to write to a real offscreen buffer independent of the window this would be the place to go. */
+struct TiksMark {
+    double x;
+    double y;
+    guint8 align;
+    gchar *text;
+};
+
+static void _gl_widget_free_tiks_mark(struct TiksMark *mark)
+{
+    if (mark) {
+        g_free(mark->text);
+        g_free(mark);
+    }
+}
+
+static void _gl_widget_tiks_callback(double x, double y, guint8 align, gchar *text, GList **list)
+{
+    g_return_if_fail(list != NULL);
+    g_print("tiks @(%f,%f): %s\n", x, y, text);
+    struct TiksMark *mark = g_malloc0(sizeof(struct TiksMark));
+    mark->x = x;
+    mark->y = y;
+    mark->align = align;
+    mark->text = g_strdup(text);
+
+    *list = g_list_prepend(*list, mark);
+}
+
+void _gl_widget_save_to_latex(const gchar *filename, UtilRectangle *render_area, GList *tiks)
+{
+    g_return_if_fail(filename != NULL);
+    g_return_if_fail(render_area != NULL);
+/*    gchar *directory = g_path_get_dirname(filename);*/
+    gchar *basename = g_path_get_basename(filename);
+    gchar *base = g_strdup(filename);
+    gchar *lastdot = strrchr(base, '.');
+    gchar *lastdirsep = strrchr(base, G_DIR_SEPARATOR);
+    if (lastdot != NULL && lastdirsep < lastdot)
+        lastdot[0] = '\0';
+
+
+    gchar *texfile = g_strdup_printf("%s.tex", base);
+
+    fprintf(stderr, "open %s\n", texfile);
+
+    FILE *f;
+    GList *tmp;
+    struct TiksMark *mark;
+
+    double size = render_area->width > render_area->height ? render_area->width : render_area->height;
+   
+    if ((f = fopen(texfile, "w")) == NULL)
+        goto out;
+
+    fprintf(f, "\\documentclass[border=1cm]{standalone}\n\\usepackage[percent]{overpic}\n\\begin{document}\n");
+    fprintf(f, "\\begin{overpic}[width=\\textwidth]{%s}\n", basename);
+
+    for (tmp = tiks; tmp != NULL; tmp = g_list_next(tmp)) {
+        mark = (struct TiksMark *)tmp->data;
+        fprintf(f, "\\put(%f,%f){\\makebox(0,0)[%c%c]{\\tiny %s}}\n",
+                (mark->x - render_area->x) / size * 100.0f,
+                (1.0f - (mark->y - render_area->y) / size) * 100.0f,
+                (mark->align & TiksAlignRight) ? 'r' : 'l',
+                (mark->align & TiksAlignBottom) ? 't' : 'b',
+                mark->text);
+    }
+
+    fprintf(f, "\\end{overpic}\n");
+    fprintf(f, "\\end{document}\n");
+
+out:
+    if (f)
+        fclose(f);
+    g_free(texfile);
+    g_free(basename);
+    g_free(base);
+}
+
 void gl_widget_save_to_file(GlWidget *widget, const gchar *filename)
 {
     g_return_if_fail(IS_GL_WIDGET(widget));
 /*[begin < 3.16]*/
     glXMakeCurrent(widget->priv->display, widget->priv->window, widget->priv->glx_context);
 /*[end < 3.16]*/
+    GList *tiks = NULL;
+    UtilRectangle render_area;
+
+    /* render and get tiks */
+    graphics_render(widget->priv->graphics_handle, (GraphicsTiksCallback)_gl_widget_tiks_callback, &tiks);
+    graphics_get_render_area(widget->priv->graphics_handle, &render_area);
     graphics_save_buffer_to_file(widget->priv->graphics_handle, filename);
+    _gl_widget_save_to_latex(filename, &render_area, tiks);
+    g_list_free_full(tiks, (GDestroyNotify)_gl_widget_free_tiks_mark);
+
+    /* re-render */
+    graphics_render(widget->priv->graphics_handle, NULL, NULL);
 }
 

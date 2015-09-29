@@ -2,6 +2,7 @@
 
 #include <X11/X.h>
 #include "matrix.h"
+#include "util-rectangle.h"
 
 typedef struct _GraphicsHandle GraphicsHandle;
 
@@ -42,3 +43,4 @@ void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix);
 void graphics_update_matrix_data(GraphicsHandle *handle);
 
 void graphics_save_buffer_to_file(GraphicsHandle *handle, const gchar *filename);
+void graphics_get_render_area(GraphicsHandle *handle, UtilRectangle *render_area);

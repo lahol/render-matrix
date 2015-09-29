@@ -4,6 +4,8 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
 
+#include <locale.h>
+
 #include "graphics.h"
 #include "gl-widget.h"
 #include "matrix.h"
@@ -89,6 +91,8 @@ static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
 int main(int argc, char **argv)
 {
     gtk_init(&argc, &argv);
+
+    setlocale(LC_NUMERIC, "C");
 
     appdata.graphics_handle = graphics_init();
 
