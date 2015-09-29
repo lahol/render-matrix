@@ -613,7 +613,8 @@ void graphics_map_bounding_box(GraphicsHandle *handle, UtilRectangle *bounding_b
     }
 }
 
-void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr, UtilRectangle *bounding_box)
+void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr, UtilRectangle *bounding_box,
+                                  GraphicsTiksCallback callback, gpointer userdata)
 {
     double far_planes[3];
     graphics_get_far_planes(handle, far_planes);
@@ -645,20 +646,22 @@ void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr, UtilRecta
     PangoLayout *layout;
     PangoFontDescription *desc;
 
-    layout = pango_cairo_create_layout(cr);
-    desc = pango_font_description_from_string("Sans 8");
-    pango_layout_set_font_description(layout, desc);
-    pango_font_description_free(desc);
-
     PangoRectangle extents;
     gboolean initialized = FALSE;
     double xr[2];
     double yr[2];
 
-    cairo_save(cr);
+    if (!callback) {
+        layout = pango_cairo_create_layout(cr);
+        desc = pango_font_description_from_string("Sans 8");
+        pango_layout_set_font_description(layout, desc);
+        pango_font_description_free(desc);
 
+        cairo_save(cr);
 
-    cairo_set_source_rgb(cr, 0.5f, 0.5f, 0.5f);
+        cairo_set_source_rgb(cr, 0.5f, 0.5f, 0.5f);
+    }
+
     for (x = -0.5f; x <= 0.51f; x += 0.2f) {
 #define UPDATE_RANGE do {\
     if (sx + shift_x < xr[0]) xr[0] = sx + shift_x;\
@@ -667,42 +670,78 @@ void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr, UtilRecta
     if (sy + shift_y + extents.height > yr[1]) yr[1] = sy + shift_y + extents.height;\
     } while(0)
 
+#define UPDATE_RANGE_SIMPLE do {\
+    if (sx < xr[0]) xr[0] = sx;\
+    if (sx > xr[1]) xr[1] = sx;\
+    if (sy < yr[0]) yr[0] = sy;\
+    if (sy > yr[1]) yr[1] = sy;\
+    } while (0)
+
         sprintf(buf, "%d", (int)((x+0.5f)*handle->matrix_data->n_columns));
-        pango_layout_set_markup(layout, buf, -1);
-        pango_layout_get_pixel_extents(layout, NULL, &extents);
         graphics_world_to_screen(handle, x, wy, z_floor, &sx, &sy, NULL);
-        shift_x = shift_axis_x == 0 ? -(double)extents.width - 1.0f : 1.0f;
-        shift_y = (shift_axis_y == 1) ? -(double)extents.height : 0.0f;
-        cairo_move_to(cr, sx + shift_x, sy + shift_y);
-        pango_cairo_update_layout(cr, layout);
-        pango_cairo_show_layout(cr, layout);
-        if (!initialized) {
-            xr[0] = sx + shift_x;
-            xr[1] = xr[0] + (double)extents.width;
-            yr[0] = sy + shift_y;
-            yr[1] = yr[1] + (double)extents.height;
-            initialized = TRUE;
+
+        if (!callback) {
+            pango_layout_set_markup(layout, buf, -1);
+            pango_layout_get_pixel_extents(layout, NULL, &extents);
+            shift_x = shift_axis_x == 0 ? -(double)extents.width - 1.0f : 1.0f;
+            shift_y = (shift_axis_y == 1) ? -(double)extents.height : 0.0f;
+            cairo_move_to(cr, sx + shift_x, sy + shift_y);
+            pango_cairo_update_layout(cr, layout);
+            pango_cairo_show_layout(cr, layout);
+
+            if (!initialized) {
+                xr[0] = sx + shift_x;
+                xr[1] = xr[0] + (double)extents.width;
+                yr[0] = sy + shift_y;
+                yr[1] = yr[1] + (double)extents.height;
+                initialized = TRUE;
+            }
+            UPDATE_RANGE;
         }
-        UPDATE_RANGE;
+        else {
+            if (!initialized) {
+                xr[0] = xr[1] = sx;
+                yr[0] = yr[1] = sy;
+                initialized = TRUE;
+            }
+            UPDATE_RANGE_SIMPLE;
+            callback(sx, sy,
+                     (shift_axis_x ? TiksAlignLeft : TiksAlignRight) |
+                     (shift_axis_y ? TiksAlignTop : TiksAlignBottom),
+                     buf, userdata);
+        }
 
         sprintf(buf, "%d", (int)((0.5f-x)*handle->matrix_data->n_rows));
-        pango_layout_set_markup(layout, buf, -1);
-        pango_layout_get_pixel_extents(layout, NULL, &extents);
         graphics_world_to_screen(handle, wx, x, z_floor, &sx, &sy, NULL);
 
-        shift_x = shift_axis_x == 1 ? -(double)extents.width - 1.0f : 1.0f;
-        shift_y = (shift_axis_y == 1) ? -(double)extents.height : 0.0f;
-        cairo_move_to(cr, sx + shift_x, sy + shift_y);
-        pango_cairo_update_layout(cr, layout);
-        pango_cairo_show_layout(cr, layout);
-        UPDATE_RANGE;
+        if (!callback) {
+            pango_layout_set_markup(layout, buf, -1);
+            pango_layout_get_pixel_extents(layout, NULL, &extents);
+            shift_x = shift_axis_x == 1 ? -(double)extents.width - 1.0f : 1.0f;
+            shift_y = (shift_axis_y == 1) ? -(double)extents.height : 0.0f;
+            cairo_move_to(cr, sx + shift_x, sy + shift_y);
+            pango_cairo_update_layout(cr, layout);
+            pango_cairo_show_layout(cr, layout);
+            UPDATE_RANGE;
+        }
+        else {
+            UPDATE_RANGE_SIMPLE;
+            callback(sx, sy,
+                     (shift_axis_x ? TiksAlignLeft : TiksAlignRight) |
+                     (shift_axis_y ? TiksAlignTop : TiksAlignBottom),
+                     buf, userdata);
+        }
+
 
 #undef UPDATE_RANGE
+#undef UPDATE_RANGE_SIMPLE
     }
 
-    g_object_unref(layout);
+    if (!callback) {
+        g_object_unref(layout);
 
-    cairo_restore(cr);
+        cairo_restore(cr);
+    }
 
     if (bounding_box) {
         bounding_box->x = xr[0];
@@ -712,7 +751,8 @@ void graphics_render_overlay_tiks(GraphicsHandle *handle, cairo_t *cr, UtilRecta
     }
 }
 
-void graphics_render_overlay(GraphicsHandle *handle, UtilRectangle *bounding_box)
+void graphics_render_overlay(GraphicsHandle *handle, UtilRectangle *bounding_box,
+                             GraphicsTiksCallback callback, gpointer userdata)
 {
     cairo_t *cr = cairo_create(handle->overlay_surface);
     /* clear surface */
@@ -722,7 +762,7 @@ void graphics_render_overlay(GraphicsHandle *handle, UtilRectangle *bounding_box
     cairo_restore(cr);
 
     UtilRectangle box_tiks;
-    graphics_render_overlay_tiks(handle, cr, &box_tiks);
+    graphics_render_overlay_tiks(handle, cr, &box_tiks, callback, userdata);
 
     if (bounding_box) *bounding_box = box_tiks;
 
@@ -873,7 +913,7 @@ void graphics_render_grid(GraphicsHandle *handle)
 #endif
 }
 
-void graphics_render(GraphicsHandle *handle)
+void graphics_render(GraphicsHandle *handle, GraphicsTiksCallback callback, gpointer userdata)
 {
     glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
     glClearDepth(0.0f);
@@ -891,7 +931,7 @@ void graphics_render(GraphicsHandle *handle)
 
     graphics_render_grid(handle);
     graphics_render_matrix(handle);
-    graphics_render_overlay(handle, &overlay_box);
+    graphics_render_overlay(handle, &overlay_box, callback, userdata);
 
     glFinish();
 

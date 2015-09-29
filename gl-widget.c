@@ -120,7 +120,7 @@ static gboolean gl_widget_draw(GtkWidget *widget, cairo_t *cr)
     glXMakeCurrent(priv->display, priv->window, priv->glx_context);
 /*[end < 3.16]*/
 
-    graphics_render(GL_WIDGET(widget)->priv->graphics_handle);
+    graphics_render(GL_WIDGET(widget)->priv->graphics_handle, NULL, NULL);
 
 /*[begin < 3.16]*/
     glXSwapBuffers(priv->display, priv->window);

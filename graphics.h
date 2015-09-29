@@ -5,6 +5,15 @@
 
 typedef struct _GraphicsHandle GraphicsHandle;
 
+/* x, y, align, string, userdata */
+typedef enum {
+    TiksAlignLeft = 1 << 0,
+    TiksAlignRight = 1 << 1,
+    TiksAlignTop = 1 << 2,
+    TiksAlignBottom = 1 << 3
+} TiksAlign;
+typedef void (*GraphicsTiksCallback)(double, double, guint8, const gchar *, gpointer);
+
 typedef enum {
     ArcBallRestrictionNone = 0,
     ArcBallRestrictionVertical,
@@ -13,7 +22,7 @@ typedef enum {
 
 GraphicsHandle *graphics_init(void);
 void graphics_cleanup(GraphicsHandle *handle);
-void graphics_render(GraphicsHandle *handle);
+void graphics_render(GraphicsHandle *handle, GraphicsTiksCallback callback, gpointer userdata);
 
 void graphics_set_window(GraphicsHandle *handle, Window window);
 void graphics_set_window_size(GraphicsHandle *handle, int width, int height);
