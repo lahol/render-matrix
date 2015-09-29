@@ -19,6 +19,8 @@
 #include "util-projection.h"
 #include "util-png.h"
 #include "util-rectangle.h"
+#include "util-colors.h"
+#include "matrix-mesh.h"
 
 #define ALMOST_EQUAL(a,b) ((a)-(b) < 0.001f && (b)-(a) < 0.001f)
 
@@ -72,46 +74,6 @@ struct _GraphicsHandle {
 
     UtilRectangle render_area;
 };
-
-/* get rgb values for (101->001->011->010->110->100)
- * [magenta -> blue -> cyan -> green -> yellow -> red]
- * @in: hue in [0,1]
- * @out: rgb [0,1]^3
- */
-void color_gradient_rgb(double hue, double *rgb)
-{
-#define _N_COLORS (7)
-
-    static double basic_table[_N_COLORS+1][3] = {
-        /* { 1.0, 1.0, 1.0 }, */
-/*        { 1.0, 0.0, 1.0 },*/
-        { 0.0, 0.0, 0.0 },
-        { 0.0, 0.0, 1.0 },
-        { 0.0, 1.0, 1.0 },
-        { 0.0, 1.0, 0.0 },
-        { 1.0, 1.0, 0.0 },
-        { 1.0, 0.0, 0.0 },
-        { 0.0, 0.0, 0.0 }, /* currently only for index, although this should be caught in the next if clause */
-    };
-
-    if (hue >= 1.0) {
-        rgb[0] = basic_table[_N_COLORS][0]; rgb[1] = basic_table[_N_COLORS][1]; rgb[2] = basic_table[_N_COLORS][2];
-        return;
-    }
-    if (hue <= 0.0) {
-        rgb[0] = basic_table[0][0]; rgb[1] = basic_table[0][1], rgb[2] = basic_table[0][2];
-        return;
-    }
-
-    int index = (int)((_N_COLORS - 1) * hue);       /* floor */
-    double lambda = ((_N_COLORS - 1) * hue - index); /* frac */
-
-    rgb[0] = (1.0 - lambda) * basic_table[index][0] + lambda * basic_table[index + 1][0];
-    rgb[1] = (1.0 - lambda) * basic_table[index][1] + lambda * basic_table[index + 1][1];
-    rgb[2] = (1.0 - lambda) * basic_table[index][2] + lambda * basic_table[index + 1][2];
-
-#undef _N_COLORS
-}
 
 void graphics_get_far_planes(GraphicsHandle *handle, double *planes)
 {
@@ -504,14 +466,8 @@ void _graphics_render_block(double x, double y, double z, double dx, double dy)
 
 void graphics_render_matrix(GraphicsHandle *handle)
 {
-    double rgb[3];
     if (handle->matrix_data == NULL)
         return;
-    MatrixIter iter;
-    matrix_iter_init(handle->matrix_data, &iter);
-    double x,y,z;
-    double dx = 1.0f/handle->matrix_data->n_columns;
-    double dy = 1.0f/handle->matrix_data->n_rows;
 
     glDisable(GL_TEXTURE_RECTANGLE_ARB);
     glEnable(GL_DEPTH_TEST);
@@ -523,19 +479,23 @@ void graphics_render_matrix(GraphicsHandle *handle)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBegin(GL_QUADS);
 
-    for (matrix_iter_init(handle->matrix_data, &iter);
-         matrix_iter_is_valid(handle->matrix_data, &iter);
-         matrix_iter_next(handle->matrix_data, &iter)) {
-        z = handle->matrix_data->chunks[iter.chunk][iter.offset];
-        x = iter.column * dx - 0.5f;
-        y = 0.5f - iter.row * dy - dy;
+    MatrixMesh *mesh = matrix_mesh_new();
+    matrix_mesh_set_matrix(mesh, handle->matrix_data);
+    MatrixMeshIter fiter;
+    MatrixMeshFace *face;
 
-        color_gradient_rgb((z - handle->min)*handle->z_scale, rgb);
-        z *= handle->z_scale;
-        glColor4f(rgb[0], rgb[1], rgb[2], 1.0f);
+    int j;
 
-        _graphics_render_block(x, y, z, dx, dy);
+    for (matrix_mesh_iter_init(mesh, &fiter);
+         matrix_mesh_iter_is_valid(mesh, &fiter);
+         matrix_mesh_iter_next(mesh, &fiter)) {
+        face = &mesh->chunk_faces[fiter.chunk][fiter.offset];
+        glColor4f(face->color_rgb[0], face->color_rgb[1], face->color_rgb[2], 1.0f);
+
+        for (j = 0; j < 4; ++j)
+            glVertex3f(face->vertices[j][0], face->vertices[j][1], face->vertices[j][2]);
     }
+
 
     glEnd();
 
@@ -545,20 +505,19 @@ void graphics_render_matrix(GraphicsHandle *handle)
     glLineWidth(0.5f);
     glBegin(GL_QUADS);
 
-    for (matrix_iter_init(handle->matrix_data, &iter);
-         matrix_iter_is_valid(handle->matrix_data, &iter);
-         matrix_iter_next(handle->matrix_data, &iter)) {
-        z = handle->matrix_data->chunks[iter.chunk][iter.offset];
-        x = iter.column * dx - 0.5f;
-        y = 0.5f - iter.row * dy - dy;
-
-        z *= handle->z_scale;
+    for (matrix_mesh_iter_init(mesh, &fiter);
+         matrix_mesh_iter_is_valid(mesh, &fiter);
+         matrix_mesh_iter_next(mesh, &fiter)) {
+        face = &mesh->chunk_faces[fiter.chunk][fiter.offset];
         glColor3f(0.4, 0.4, 0.4);
 
-        _graphics_render_block(x, y, z, dx, dy);
+        for (j = 0; j < 4; ++j)
+            glVertex3f(face->vertices[j][0], face->vertices[j][1], face->vertices[j][2]);
     }
 
     glEnd();
+
+    matrix_mesh_free(mesh);
 }
 
 void graphics_world_to_screen(GraphicsHandle *handle,
