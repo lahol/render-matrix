@@ -44,3 +44,5 @@ void graphics_update_matrix_data(GraphicsHandle *handle);
 
 void graphics_save_buffer_to_file(GraphicsHandle *handle, const gchar *filename);
 void graphics_get_render_area(GraphicsHandle *handle, UtilRectangle *render_area);
+
+void graphics_get_rotation(GraphicsHandle *handle, double *rotation_matrix);

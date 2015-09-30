@@ -9,6 +9,8 @@
 #include "graphics.h"
 #include "gl-widget.h"
 #include "matrix.h"
+#include "matrix-mesh.h"
+#include "mesh-export.h"
 
 struct {
     GtkWidget *glwidget;
@@ -75,12 +77,34 @@ static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
     gtk_file_filter_add_pattern(filter, "*.png");
     gtk_file_chooser_add_filter(chooser, filter);
 
+    filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(filter, "SVG-Images");
+    gtk_file_filter_add_pattern(filter, "*.svg");
+    gtk_file_chooser_add_filter(chooser, filter);
+
+    filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(filter, "PDF-Files");
+    gtk_file_filter_add_pattern(filter, "*.pdf");
+    gtk_file_chooser_add_filter(chooser, filter);
+
     gint res = gtk_dialog_run(GTK_DIALOG(dialog));
     gchar *filename;
 
     if (res == GTK_RESPONSE_ACCEPT) {
         filename = gtk_file_chooser_get_filename(chooser);
-        gl_widget_save_to_file(GL_WIDGET(appdata.glwidget), filename);
+        if (g_str_has_suffix(filename, ".png")) {
+            gl_widget_save_to_file(GL_WIDGET(appdata.glwidget), filename);
+        }
+        else if (g_str_has_suffix(filename, ".svg") || g_str_has_suffix(filename, ".pdf")) {
+            fprintf(stderr, "save as svg/pdf\n");
+            MatrixMesh *mesh = matrix_mesh_new();
+            matrix_mesh_set_matrix(mesh, appdata.display_matrix);
+            double projection[16];
+            graphics_get_rotation(appdata.graphics_handle, projection);
+            mesh_export_to_file(filename,
+                    g_str_has_suffix(filename, ".svg") ? ExportFileTypeSVG : ExportFileTypePDF, mesh, projection);
+            matrix_mesh_free(mesh);
+        }
         g_free(filename);
     }
 

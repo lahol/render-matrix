@@ -975,3 +975,10 @@ void graphics_get_render_area(GraphicsHandle *handle, UtilRectangle *render_area
     *render_area = handle->render_area;
 }
 
+void graphics_get_rotation(GraphicsHandle *handle, double *rotation_matrix)
+{
+    g_return_if_fail(handle != NULL);
+    g_return_if_fail(rotation_matrix != NULL);
+
+    memcpy(rotation_matrix, handle->rotation_matrix, 16 * sizeof(double));
+}
