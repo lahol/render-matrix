@@ -1,5 +1,6 @@
 #include "mesh-export.h"
 #include "util-projection.h"
+#include "util-rectangle.h"
 
 #include <cairo.h>
 #include <cairo-svg.h>
@@ -65,6 +66,50 @@ GList *mesh_export_generate_faces(MatrixMesh *mesh, double *projection)
     return g_list_sort(faces, (GCompareFunc)mesh_export_sort_zlevel);
 }
 
+void mesh_export_get_bounding_box(MatrixMesh *mesh, double *projection, UtilRectangle *bounding_box)
+{
+    /* everything is inside a unit cube between mesh->range[0] and mesh->range[1] */
+    double w[3];
+    double s[3];
+
+    double xr[2];
+    double yr[2];
+
+    w[0] = -0.5f;
+    w[1] = -0.5f;
+    w[2] = mesh->zrange[0];
+    mesh_export_world_to_screen(projection, w, s);
+    xr[0] = xr[1] = s[0];
+    yr[0] = yr[1] = s[1];
+
+#define EXPAND_BOX(wx, wy, wz) do {\
+    w[0] = (wx); w[1] = (wy); w[2] = (wz);\
+    mesh_export_world_to_screen(projection, w, s);\
+    if (s[0] < xr[0]) xr[0] = s[0];\
+    if (s[0] > xr[1]) xr[1] = s[0];\
+    if (s[1] < yr[0]) yr[0] = s[1];\
+    if (s[1] > yr[1]) yr[1] = s[1];\
+    } while (0)
+
+    EXPAND_BOX(-0.5f, 0.5f, mesh->zrange[0]);
+    EXPAND_BOX(0.5f, 0.5f, mesh->zrange[0]);
+    EXPAND_BOX(0.5f, -0.5f, mesh->zrange[0]);
+
+    EXPAND_BOX(-0.5f, -0.5f, mesh->zrange[1]);
+    EXPAND_BOX(-0.5f, 0.5f, mesh->zrange[1]);
+    EXPAND_BOX(0.5f, 0.5f, mesh->zrange[1]);
+    EXPAND_BOX(0.5f, -0.5f, mesh->zrange[1]);
+
+#undef EXPAND_BOX
+
+    if (bounding_box) {
+        bounding_box->x = xr[0];
+        bounding_box->y = yr[0];
+        bounding_box->width = (xr[1]-xr[0]+1.0f);
+        bounding_box->height = (yr[1]-yr[0]+1.0f);
+    }
+}
+
 void mesh_render_faces(cairo_t *cr, GList *faces)
 {
     GList *tmp;
@@ -91,20 +136,26 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
     cairo_surface_t *surface = NULL;
     cairo_t *cr = NULL;
 
+    GList *faces = mesh_export_generate_faces(mesh, projection);
+    UtilRectangle bounding_box;
+
+    mesh_export_get_bounding_box(mesh, projection, &bounding_box);
+    g_print("bounding box: @(%f, %f) %f x %f\n", bounding_box.x, bounding_box.y, bounding_box.width, bounding_box.height);
+
     switch (type) {
         case ExportFileTypeSVG:
-            surface = cairo_svg_surface_create(filename, 72*100, 72*100);
+            surface = cairo_svg_surface_create(filename, bounding_box.width, bounding_box.height);
             break;
         case ExportFileTypePDF:
-            surface = cairo_pdf_surface_create(filename, 72*100, 72*100);
+            surface = cairo_pdf_surface_create(filename, bounding_box.height, bounding_box.height);
             break;
         default:
             return FALSE;
     }
 
     cr = cairo_create(surface);
+    cairo_translate(cr, -bounding_box.x, -bounding_box.y);
 
-    GList *faces = mesh_export_generate_faces(mesh, projection);
     mesh_render_faces(cr, faces);
 
     g_list_free_full(faces, g_free);

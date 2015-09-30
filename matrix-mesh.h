@@ -31,6 +31,7 @@ typedef struct {
     MatrixMeshIter last;
     guint32 n_chunks;
     MatrixMeshFace **chunk_faces;
+    double zrange[2];
 } MatrixMesh;
 
 MatrixMesh *matrix_mesh_new(void);

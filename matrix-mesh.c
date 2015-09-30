@@ -111,6 +111,9 @@ void matrix_mesh_update(MatrixMesh *mesh)
     range[0] *= scale;
     range[1] *= scale;
 
+    mesh->zrange[0] = range[0];
+    mesh->zrange[1] = range[1];
+
     double dx = 1.0f/m->n_columns;
     double dy = 1.0f/m->n_rows;
     double x,y,z;
