@@ -56,6 +56,8 @@ struct _GraphicsHandle {
     guint32 inv_projection_valid : 1;
     guint32 in_tmp_rotation : 1;
     guint32 in_tmp_translation : 1;
+    guint32 display_list_initialized : 1;
+    guint32 display_list_valid : 1;
 
     Matrix *matrix_data;
 
@@ -73,6 +75,8 @@ struct _GraphicsHandle {
     cairo_surface_t *overlay_surface;
 
     UtilRectangle render_area;
+
+    GLuint display_list;
 };
 
 void graphics_get_far_planes(GraphicsHandle *handle, double *planes)
@@ -419,6 +423,9 @@ GraphicsHandle *graphics_init(void)
     handle->zoom_factor = 512.0f;
     handle->zoom_level = 0;
 
+    handle->display_list_valid = 0;
+    handle->display_list_initialized = 0;
+
     return handle;
 }
 
@@ -432,6 +439,8 @@ void graphics_cleanup(GraphicsHandle *handle)
         g_free(handle->overlay_data);
     if (handle->overlay_tex_id)
         glDeleteTextures(1, &handle->overlay_tex_id);
+    if (handle->display_list_initialized)
+        glDeleteLists(handle->display_list, 1);
     g_free(handle);
 }
 
@@ -468,6 +477,17 @@ void graphics_render_matrix(GraphicsHandle *handle)
 {
     if (handle->matrix_data == NULL)
         return;
+
+    if (handle->display_list_initialized == 0) {
+        handle->display_list = glGenLists(1);
+        handle->display_list_initialized = 1;
+    }
+    if (handle->display_list_valid == 1) {
+        glCallList(handle->display_list);
+        return;
+    }
+
+    glNewList(handle->display_list, GL_COMPILE_AND_EXECUTE);
 
     glDisable(GL_TEXTURE_RECTANGLE_ARB);
     glEnable(GL_DEPTH_TEST);
@@ -516,6 +536,9 @@ void graphics_render_matrix(GraphicsHandle *handle)
     }
 
     glEnd();
+
+    glEndList();
+    handle->display_list_valid = 1;
 
     matrix_mesh_free(mesh);
 }
@@ -934,6 +957,8 @@ void graphics_update_matrix_data(GraphicsHandle *handle)
 
     g_print("max/min/z_scale: %f/%f/%f\n", max, min, handle->z_scale);
     graphics_recalc_scale_vector(handle);
+
+    handle->display_list_valid = 0;
 }
 
 void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix)
