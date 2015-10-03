@@ -20,11 +20,28 @@ void mesh_export_world_to_screen(double *projection, double *wv, double *sv)
 
     sv[0] = (vs[0] + 1.0f) * 0.5f * 100.0f * 72;
     sv[1] = (1.0f - vs[1]) * 0.5f * 100.0f * 72;
-    sv[2] = vs[2] * 100.0f * 72;
+    sv[2] = vs[2];
 }
 
 gint mesh_export_sort_zlevel(struct SVGFace *a, struct SVGFace *b)
 {
+#ifdef DEBUG
+    int i;
+    double min_y_a = a->vertices[0][1];
+    double min_y_b = b->vertices[0][1];
+    for (i = 1; i < 4; ++i) {
+        if (min_y_a > a->vertices[i][1])
+            min_y_a = a->vertices[i][1];
+        if (min_y_b > b->vertices[i][1])
+            min_y_b = b->vertices[i][1];
+    }
+
+    if (min_y_a < 2200.0f && min_y_b < 2200.0f) {
+        fprintf(stderr, "min_y (%.2f, %.2f), z: cmp(%f, %f): %d\n",
+                min_y_a, min_y_b, a->zlevel, b->zlevel, a->zlevel < b->zlevel ? -1 : (a->zlevel > b->zlevel ? 1 : 0));
+    }
+    
+#endif
     if (a->zlevel < b->zlevel)
         return -1;
     if (a->zlevel > b->zlevel)
@@ -114,6 +131,7 @@ void mesh_render_faces(cairo_t *cr, GList *faces)
 {
     GList *tmp;
     struct SVGFace *face;
+    cairo_set_line_width(cr, 0.4f);
     for (tmp = faces; tmp; tmp = g_list_next(tmp)) {
         face = (struct SVGFace *)tmp->data;
         cairo_move_to(cr, face->vertices[0][0], face->vertices[0][1]);
@@ -126,6 +144,30 @@ void mesh_render_faces(cairo_t *cr, GList *faces)
 
         cairo_set_source_rgba(cr, 0.4f, 0.4f, 0.4f, 1.0f);
         cairo_stroke(cr);
+    }
+}
+
+void mesh_render_grid(cairo_t *cr, UtilRectangle *bounding_box)
+{
+    int i;
+    gchar buffer[256];
+    cairo_set_source_rgba(cr, 0.3f, 0.3f, 0.3f, 0.7f);
+    cairo_set_font_size(cr, 64);
+    for (i = 0; i * 720.0f <= bounding_box->width; ++i) {
+        cairo_move_to(cr, bounding_box->x + i * 720.0f, bounding_box->y + 0.0f);
+        cairo_line_to(cr, bounding_box->x + i * 720.0f, bounding_box->y + bounding_box->height);
+        cairo_stroke(cr);
+        cairo_move_to(cr, bounding_box->x + i * 720.0f, bounding_box->y + 90.0f);
+        sprintf(buffer, "%.02f", i * 720.0f);
+        cairo_show_text(cr, buffer);
+    }
+    for (i = 0; i * 720.0f <= bounding_box->height; ++i) {
+        cairo_move_to(cr, bounding_box->x + 0.0f, bounding_box->y + i * 720.0f);
+        cairo_line_to(cr, bounding_box->x + bounding_box->width, bounding_box->y + i * 720.0f);
+        cairo_stroke(cr);
+        cairo_move_to(cr, bounding_box->x + 0.0f, bounding_box->y + i * 720.0f);
+        sprintf(buffer, "%.02f", i * 720.0f);
+        cairo_show_text(cr, buffer);
     }
 }
 
@@ -157,6 +199,7 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
     cairo_translate(cr, -bounding_box.x, -bounding_box.y);
 
     mesh_render_faces(cr, faces);
+    mesh_render_grid(cr, &bounding_box);
 
     g_list_free_full(faces, g_free);
     cairo_destroy(cr);
