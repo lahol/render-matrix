@@ -112,6 +112,7 @@ static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
 }
 
 /* TODO: Use GtkGLArea if Gtk+>=3.16 */
+/* TODO: batch-mode (--batch, --azimuth, --elevation, --tilt, --export, --permute, --alternate-signs, --shift-signs, …) */
 int main(int argc, char **argv)
 {
     gtk_init(&argc, &argv);
