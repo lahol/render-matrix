@@ -555,6 +555,20 @@ void graphics_world_to_screen(GraphicsHandle *handle,
     if (sz) *sz = vs[2];
 }
 
+void graphics_screen_to_world(GraphicsHandle *handle,
+                              double sx, double sy, double sz,
+                              double *wx, double *wy, double *wz)
+{
+    double vs[4] = { 2.0f*sx/handle->width-1.0f,
+                     1.0f - 2.0f*sy/handle->height, sz, 1.0f };
+    double vw[4];
+    graphics_calc_inverse_projection(handle);
+    util_vector_matrix_multiply(vs, handle->projection_matrix_inv, vw);
+    if (wx) *wx = vw[0];
+    if (wy) *wy = vw[1];
+    if (wz) *wz = vw[2];
+}
+
 void graphics_map_bounding_box(GraphicsHandle *handle, UtilRectangle *bounding_box)
 {
     double xr[2];
@@ -913,6 +927,25 @@ void graphics_render(GraphicsHandle *handle, GraphicsTiksCallback callback, gpoi
 
     graphics_render_grid(handle);
     graphics_render_matrix(handle);
+#if 0
+    DEBUG
+    double x[2], y[2], z[2];
+
+    graphics_calc_inverse_projection(handle);
+
+    graphics_screen_to_world(handle, 100, 100, 0, &x[0], &y[0], &z[0]);
+    graphics_screen_to_world(handle, 110, 110, 0.1, &x[1], &y[1], &z[1]);
+    glPointSize(20.0f);
+    glBegin(GL_POINTS);
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glVertex3f(x[0], y[0], z[0]);
+    glColor3f(0.0f, 1.0f, 0.0f);
+    glVertex3f(x[1], y[1], z[1]);
+    glEnd();
+    fprintf(stderr, "s[0] (%f,%f,%f)\n", x[0], y[0], z[0]);
+    fprintf(stderr, "s[1] (%f,%f,%f)\n", x[1], y[1], z[1]);
+
+#endif
     graphics_render_overlay(handle, &overlay_box, callback, userdata);
 
     glFinish();
