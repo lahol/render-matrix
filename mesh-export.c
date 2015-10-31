@@ -12,6 +12,18 @@ struct SVGFace {
     double zlevel;
 };
 
+ExportFileType mesh_export_get_type_from_filename(const gchar *filename)
+{
+    if (g_str_has_suffix(filename, ".pdf"))
+        return ExportFileTypePDF;
+    if (g_str_has_suffix(filename, ".svg"))
+        return ExportFileTypeSVG;
+    if (g_str_has_suffix(filename, ".png"))
+        return ExportFileTypePNG;
+
+    return ExportFileTypeUnknown;
+}
+
 void mesh_export_world_to_screen(double *projection, double *wv, double *sv)
 {
     double vs[4];
@@ -241,6 +253,9 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
         case ExportFileTypePDF:
             surface = cairo_pdf_surface_create(filename, bounding_box.width, bounding_box.height);
             break;
+        case ExportFileTypePNG:
+            /* TODO: image surface, get data, write to png */
+            return FALSE;
         default:
             return FALSE;
     }

@@ -35,7 +35,7 @@ struct {
     double elevation;
     double tilt;
 
-    gchar *export;
+    gchar *output_filename;
     gboolean permutate_entries;
     gboolean alternate_signs;
     gboolean shift_signs;
@@ -45,7 +45,7 @@ struct {
 void main_config_default(void)
 {
     config.batchmode = FALSE;
-    config.export = NULL;
+    config.output_filename = NULL;
 
     config.azimuth = 65.0;
     config.elevation = -60.0;
@@ -95,6 +95,32 @@ static void matrix_properties_toggled(GtkToggleButton *button, gpointer userdata
     gtk_widget_queue_draw(appdata.glwidget);
 }
 
+void main_save_matrix_to_file(const gchar *filename)
+{
+    ExportFileType type = mesh_export_get_type_from_filename(filename);
+
+    switch (type) {
+        case ExportFileTypePNG:
+            gl_widget_save_to_file(GL_WIDGET(appdata.glwidget), filename);
+            break;
+        case ExportFileTypePDF:
+        case ExportFileTypeSVG:
+            {
+                MatrixMesh *mesh = matrix_mesh_new();
+                matrix_mesh_set_matrix(mesh, appdata.display_matrix);
+
+                double projection[16];
+                util_get_rotation_matrix_from_angles(projection, config.azimuth, config.elevation, config.tilt);
+                mesh_export_to_file(filename, type, mesh, projection);
+
+                matrix_mesh_free(mesh);
+            }
+            break;
+        default:
+            g_print("Unsupported file type.\n");
+    }
+}
+
 static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
 {
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Save Image",
@@ -129,19 +155,7 @@ static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
 
     if (res == GTK_RESPONSE_ACCEPT) {
         filename = gtk_file_chooser_get_filename(chooser);
-        if (g_str_has_suffix(filename, ".png")) {
-            gl_widget_save_to_file(GL_WIDGET(appdata.glwidget), filename);
-        }
-        else if (g_str_has_suffix(filename, ".svg") || g_str_has_suffix(filename, ".pdf")) {
-            fprintf(stderr, "save as svg/pdf\n");
-            MatrixMesh *mesh = matrix_mesh_new();
-            matrix_mesh_set_matrix(mesh, appdata.display_matrix);
-            double projection[16];
-            graphics_get_rotation(appdata.graphics_handle, projection);
-            mesh_export_to_file(filename,
-                    g_str_has_suffix(filename, ".svg") ? ExportFileTypeSVG : ExportFileTypePDF, mesh, projection);
-            matrix_mesh_free(mesh);
-        }
+        main_save_matrix_to_file(filename);
         g_free(filename);
     }
 
@@ -245,13 +259,15 @@ void main_cleanup(void)
 /* TODO: batch-mode (--batch, --azimuth, --elevation, --tilt, --export, --permute, --alternate-signs, --shift-signs, …) */
 static GOptionEntry _command_line_options[] = {
     { "batch", 'b', 0, G_OPTION_ARG_NONE, &config.batchmode, "Run in batchmode (no GUI)", NULL },
-    { "azimuth", 'a', 0, G_OPTION_ARG_DOUBLE, &config.azimuth, "Azimuth", "Angle in degree" },
+    { "azimuth", 'a', 0, G_OPTION_ARG_DOUBLE, &config.azimuth, "Azimuth", "Angle in degree",  },
     { "elevation", 'e', 0, G_OPTION_ARG_DOUBLE, &config.elevation, "Elevation", "Angle in degree" },
     { "tilt", 't', 0, G_OPTION_ARG_DOUBLE, &config.tilt, "Tilt", "Angle in degree" },
     { "permutate-entries", 'P', 0, G_OPTION_ARG_NONE, &config.permutate_entries, "Permutate entries", NULL },
+    { "reorder-entries", 'R', 0, G_OPTION_ARG_NONE, &config.permutate_entries, "same as --permutate-entries", NULL },
     { "alternate-signs", 'A', 0, G_OPTION_ARG_NONE, &config.alternate_signs, "Overlay matrix with alternating signs", NULL },
     { "shift-signs", 'S', 0, G_OPTION_ARG_NONE, &config.shift_signs, "Shift signs (only with --alternate-signs)", NULL },
-    { "log-scale", 'L', 0, G_OPTION_ARG_NONE, &config.log_scale, "Use log-scale, i.e. sgn(value) * log(1+|value|)" },
+    { "log-scale", 'L', 0, G_OPTION_ARG_NONE, &config.log_scale, "Use log-scale, i.e. sgn(value) * log(1+|value|)", NULL },
+    { "output", 'o', 0, G_OPTION_ARG_FILENAME, &config.output_filename, "Output filename", "Filename" },
     { NULL }
 };
 
@@ -285,10 +301,19 @@ int main(int argc, char **argv)
 
     main_update_display_matrix();
 
-    main_init_ui();
+    /* TODO: warn if unrecognized options, e.g. output_filename without batchmode */
+    if (!config.batchmode) {
+        main_init_ui();
+    }
+    else {
+        if (config.output_filename)
+            main_save_matrix_to_file(config.output_filename);
+        goto done;
+    }
 
     gtk_main();
 
+done:
     main_cleanup();
 
     return 0;
