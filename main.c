@@ -113,19 +113,13 @@ static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
 
 /* TODO: Use GtkGLArea if Gtk+>=3.16 */
 /* TODO: batch-mode (--batch, --azimuth, --elevation, --tilt, --export, --permute, --alternate-signs, --shift-signs, …) */
-int main(int argc, char **argv)
+
+void main_init_ui(void)
 {
-    gtk_init(&argc, &argv);
-
-    setlocale(LC_NUMERIC, "C");
-
     appdata.graphics_handle = graphics_init();
+    graphics_set_matrix_data(appdata.graphics_handle, appdata.display_matrix);
 
     graphics_set_camera(appdata.graphics_handle, 65.0, -60.0, 0.0);
-
-    appdata.orig_matrix = matrix_read_from_file(STDIN_FILENO);
-    appdata.display_matrix = matrix_dup(appdata.orig_matrix);
-    graphics_set_matrix_data(appdata.graphics_handle, appdata.display_matrix);
 
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     g_signal_connect(G_OBJECT(window), "destroy",
@@ -198,12 +192,30 @@ int main(int argc, char **argv)
     gtk_container_add(GTK_CONTAINER(window), vbox);
     gtk_widget_show_all(window);
 
-    gtk_main();
+}
 
+void main_cleanup(void)
+{
     matrix_free(appdata.display_matrix);
     matrix_free(appdata.orig_matrix);
 
     graphics_cleanup(appdata.graphics_handle);
+}
+
+int main(int argc, char **argv)
+{
+    gtk_init(&argc, &argv);
+
+    setlocale(LC_NUMERIC, "C");
+
+    appdata.orig_matrix = matrix_read_from_file(STDIN_FILENO);
+    appdata.display_matrix = matrix_dup(appdata.orig_matrix);
+
+    main_init_ui();
+
+    gtk_main();
+
+    main_cleanup();
 
     return 0;
 }

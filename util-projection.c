@@ -95,6 +95,20 @@ void util_get_rotation_matrix(double *matrix, double angle, int axis, double *co
     }
 }
 
+void util_get_rotation_matrix_from_angles(double *matrix, double azimuth, double elevation, double tilt)
+{
+    if (matrix == NULL)
+        return;
+
+    util_matrix_identify(matrix);
+
+    util_rotate_matrix(matrix, azimuth, UTIL_AXIS_Z, NULL);
+
+    util_rotate_matrix(matrix, elevation, UTIL_AXIS_X, NULL);
+
+    util_rotate_matrix(matrix, tilt, UTIL_AXIS_Z, NULL);
+}
+
 /* compute azimuth, elevation, tilt from (transposed) rotation matrix */
 /* transformation is expected in the form
  *  1. azimuth around z-axis

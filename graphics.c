@@ -185,12 +185,7 @@ void graphics_set_camera(GraphicsHandle *handle, double azimuth, double elevatio
 {
     g_return_if_fail(handle != NULL);
 
-    util_matrix_identify(handle->rotation_matrix);
-    util_rotate_matrix(handle->rotation_matrix, azimuth, UTIL_AXIS_Z, NULL);
-
-    util_rotate_matrix(handle->rotation_matrix, elevation, UTIL_AXIS_X, NULL);
-
-    util_rotate_matrix(handle->rotation_matrix, tilt, UTIL_AXIS_Z, NULL);
+    util_get_rotation_matrix_from_angles(handle->rotation_matrix, azimuth, elevation, tilt);
 
     /* set inverse rotation */
     memcpy(handle->rotation_matrix_inv, handle->rotation_matrix, sizeof(double) * 16);
