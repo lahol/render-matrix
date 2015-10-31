@@ -8,7 +8,7 @@ LIBS = `$(PKG_CONFIG) --libs glib-2.0 gtk+-3.0 x11 gl cairo` -lm -lpng
 
 RCVERSION := '$(shell git describe --tags --always) ($(shell git log --pretty=format:%cd --date=short -n1), branch \"$(shell git describe --tags --always --all | sed s:heads/::)\")'
 
-PREFIX ?= /sur
+PREFIX ?= /usr
 
 rm_SRC := $(wildcard *.c)
 rm_OBJ := $(rm_SRC:.c=.o)
