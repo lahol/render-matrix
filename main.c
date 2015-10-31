@@ -11,6 +11,7 @@
 #include "matrix.h"
 #include "matrix-mesh.h"
 #include "mesh-export.h"
+#include "util-projection.h"
 
 struct {
     GtkWidget *glwidget;
@@ -28,6 +29,34 @@ struct {
     GraphicsHandle *graphics_handle;
 } appdata;
 
+struct {
+    gboolean batchmode;
+    double azimuth;
+    double elevation;
+    double tilt;
+
+    gchar *export;
+    gboolean permutate_entries;
+    gboolean alternate_signs;
+    gboolean shift_signs;
+    gboolean log_scale;
+} config;
+
+void main_config_default(void)
+{
+    config.batchmode = FALSE;
+    config.export = NULL;
+
+    config.azimuth = 65.0;
+    config.elevation = -60.0;
+    config.tilt = 0.0;
+
+    config.permutate_entries = FALSE;
+    config.alternate_signs = FALSE;
+    config.shift_signs = FALSE;
+    config.log_scale = FALSE;
+}
+
 static void camera_value_changed(GtkSpinButton *button, gpointer userdata)
 {
     double azimuth = gtk_spin_button_get_value(GTK_SPIN_BUTTON(appdata.spin_azimuth));
@@ -39,19 +68,27 @@ static void camera_value_changed(GtkSpinButton *button, gpointer userdata)
     gtk_widget_queue_draw(appdata.glwidget);
 }
 
+void main_update_display_matrix(void)
+{
+    matrix_copy(appdata.display_matrix, appdata.orig_matrix);
+    if (config.log_scale)
+        matrix_log_scale(appdata.display_matrix);
+    if (config.permutate_entries)
+        matrix_permutate_matrix(appdata.display_matrix);
+    if (config.alternate_signs)
+        matrix_alternate_signs(appdata.display_matrix, config.shift_signs);
+}
+
 static void matrix_properties_toggled(GtkToggleButton *button, gpointer userdata)
 {
     matrix_copy(appdata.display_matrix, appdata.orig_matrix);
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_log_scale)))
-        matrix_log_scale(appdata.display_matrix);
+    config.log_scale =  gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_log_scale));
+    config.permutate_entries = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_permutation));
+    config.alternate_signs = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_alternate_signs));
+    config.shift_signs = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_shift_signs));
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_permutation)))
-        matrix_permutate_matrix(appdata.display_matrix);
-
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_alternate_signs)))
-        matrix_alternate_signs(appdata.display_matrix,
-                gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_shift_signs)));
+    main_update_display_matrix();
 
     graphics_update_matrix_data(appdata.graphics_handle);
 
@@ -112,14 +149,13 @@ static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
 }
 
 /* TODO: Use GtkGLArea if Gtk+>=3.16 */
-/* TODO: batch-mode (--batch, --azimuth, --elevation, --tilt, --export, --permute, --alternate-signs, --shift-signs, …) */
 
 void main_init_ui(void)
 {
     appdata.graphics_handle = graphics_init();
     graphics_set_matrix_data(appdata.graphics_handle, appdata.display_matrix);
 
-    graphics_set_camera(appdata.graphics_handle, 65.0, -60.0, 0.0);
+    graphics_set_camera(appdata.graphics_handle, config.azimuth, config.elevation, config.tilt);
 
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     g_signal_connect(G_OBJECT(window), "destroy",
@@ -133,13 +169,13 @@ void main_init_ui(void)
 
     appdata.spin_azimuth = gtk_spin_button_new_with_range(0.0, 360.0, 5.0);
     gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(appdata.spin_azimuth), TRUE);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(appdata.spin_azimuth), 65.0);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(appdata.spin_azimuth), config.azimuth);
     appdata.spin_elevation = gtk_spin_button_new_with_range(-90.0, 90.0, 5.0);
     gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(appdata.spin_elevation), FALSE);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(appdata.spin_elevation), -60.0);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(appdata.spin_elevation), config.elevation);
     appdata.spin_tilt = gtk_spin_button_new_with_range(-180.0, 180.0, 5.0);
     gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(appdata.spin_tilt), TRUE);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(appdata.spin_tilt), 0.0);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(appdata.spin_tilt), config.tilt);
 
     g_signal_connect(G_OBJECT(appdata.spin_azimuth), "value-changed",
             G_CALLBACK(camera_value_changed), NULL);
@@ -161,21 +197,25 @@ void main_init_ui(void)
     gtk_box_pack_start(GTK_BOX(hbox), appdata.spin_tilt, FALSE, FALSE, 3);
 
     appdata.check_permutation = gtk_check_button_new_with_label("Reorder entries");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(appdata.check_permutation), config.permutate_entries);
     g_signal_connect(G_OBJECT(appdata.check_permutation), "toggled",
             G_CALLBACK(matrix_properties_toggled), NULL);
     gtk_box_pack_start(GTK_BOX(hbox), appdata.check_permutation, FALSE, FALSE, 3);
 
     appdata.check_alternate_signs = gtk_check_button_new_with_label("Alternate signs");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(appdata.check_alternate_signs), config.alternate_signs);
     g_signal_connect(G_OBJECT(appdata.check_alternate_signs), "toggled",
             G_CALLBACK(matrix_properties_toggled), NULL);
     gtk_box_pack_start(GTK_BOX(hbox), appdata.check_alternate_signs, FALSE, FALSE, 3);
 
     appdata.check_shift_signs = gtk_check_button_new_with_label("Shift signs");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(appdata.check_shift_signs), config.shift_signs);
     g_signal_connect(G_OBJECT(appdata.check_shift_signs), "toggled",
             G_CALLBACK(matrix_properties_toggled), NULL);
     gtk_box_pack_start(GTK_BOX(hbox), appdata.check_shift_signs, FALSE, FALSE, 3);
 
     appdata.check_log_scale = gtk_check_button_new_with_label("Log scale");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(appdata.check_log_scale), config.log_scale);
     g_signal_connect(G_OBJECT(appdata.check_log_scale), "toggled",
             G_CALLBACK(matrix_properties_toggled), NULL);
     gtk_box_pack_start(GTK_BOX(hbox), appdata.check_log_scale, FALSE, FALSE, 3);
@@ -202,14 +242,48 @@ void main_cleanup(void)
     graphics_cleanup(appdata.graphics_handle);
 }
 
+/* TODO: batch-mode (--batch, --azimuth, --elevation, --tilt, --export, --permute, --alternate-signs, --shift-signs, …) */
+static GOptionEntry _command_line_options[] = {
+    { "batch", 'b', 0, G_OPTION_ARG_NONE, &config.batchmode, "Run in batchmode (no GUI)", NULL },
+    { "azimuth", 'a', 0, G_OPTION_ARG_DOUBLE, &config.azimuth, "Azimuth", "Angle in degree" },
+    { "elevation", 'e', 0, G_OPTION_ARG_DOUBLE, &config.elevation, "Elevation", "Angle in degree" },
+    { "tilt", 't', 0, G_OPTION_ARG_DOUBLE, &config.tilt, "Tilt", "Angle in degree" },
+    { "permutate-entries", 'P', 0, G_OPTION_ARG_NONE, &config.permutate_entries, "Permutate entries", NULL },
+    { "alternate-signs", 'A', 0, G_OPTION_ARG_NONE, &config.alternate_signs, "Overlay matrix with alternating signs", NULL },
+    { "shift-signs", 'S', 0, G_OPTION_ARG_NONE, &config.shift_signs, "Shift signs (only with --alternate-signs)", NULL },
+    { "log-scale", 'L', 0, G_OPTION_ARG_NONE, &config.log_scale, "Use log-scale, i.e. sgn(value) * log(1+|value|)" },
+    { NULL }
+};
+
+gboolean main_parse_command_line(int *argc, char ***argv)
+{
+    main_config_default();
+    GOptionContext *context = g_option_context_new(" – render histogram of matrix from stdin");
+    g_option_context_add_main_entries(context, _command_line_options, "render-matrix");
+    if (!g_option_context_parse(context, argc, argv, NULL)) {
+        g_option_context_free(context);
+        return FALSE;
+    }
+    g_option_context_free(context);
+/*  Read more arguments?
+    if (*argc > 1) {
+    }*/
+    return TRUE;
+}
+
 int main(int argc, char **argv)
 {
     gtk_init(&argc, &argv);
 
     setlocale(LC_NUMERIC, "C");
 
+    if (!main_parse_command_line(&argc, &argv))
+        return 1;
+
     appdata.orig_matrix = matrix_read_from_file(STDIN_FILENO);
     appdata.display_matrix = matrix_dup(appdata.orig_matrix);
+
+    main_update_display_matrix();
 
     main_init_ui();
 
