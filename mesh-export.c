@@ -9,7 +9,8 @@
 struct SVGFace {
     double vertices[4][3];
     double color[4];
-    double zlevel;
+    UtilRectangle bounding_box;
+    double zvalue;
 };
 
 ExportFileType mesh_export_get_type_from_filename(const gchar *filename)
@@ -59,11 +60,76 @@ gint mesh_export_sort_zlevel(struct SVGFace *a, struct SVGFace *b)
     }
     
 #endif
-    if (a->zlevel < b->zlevel)
+/*    fprintf(stderr, "a(%.2f, %.2f), (%.2f x %.2f)\nb(%.2f,%2f), (%.2f x %.2f)\n",
+            a->bounding_box.x, a->bounding_box.y, a->bounding_box.width, a->bounding_box.height,
+            b->bounding_box.x, b->bounding_box.y, b->bounding_box.width, b->bounding_box.height);*/
+/*    if (!util_do_rectangles_overlap(&(a->bounding_box), &(b->bounding_box))) {
+        return 0;
+    }*/
+    if (a->zvalue < b->zvalue)
         return -1;
-    if (a->zlevel > b->zlevel)
+    if (a->zvalue > b->zvalue)
         return 1;
+#if 0
+    /* project points of a on face of b (is more or less rectangle)
+     * get coordinates in terms of v0->v1; v0->v3 if in [0,1] -> interpolate z value and compare
+     * if no such point is found they do not overlap */
+    double u1[2], u2[2];
+    u1[0] = b->vertices[1][0] - b->vertices[0][0];
+    u1[1] = b->vertices[1][1] - b->vertices[0][1];
+    u2[0] = b->vertices[3][0] - b->vertices[0][0];
+    u2[1] = b->vertices[3][1] - b->vertices[0][1];
+
+    double det = u1[0]*u2[1] - u1[1]*u2[0];
+    if (det == 0)
+        return 0;
+
+    double lambda[2];
+    guint8 j;
+    double z;
+    for (j = 0; j < 4; ++j) {
+        lambda[0] = (u2[1] * a->vertices[j][0] - u2[0] * a->vertices[j][1]) / det;
+        lambda[1] = (u1[0] * a->vertices[j][1] - u1[1] * a->vertices[j][0]) / det;
+    /*    fprintf(stderr, "lambda: %f, %f\n", lambda[0], lambda[1]);
+        if (lambda[0] >= 0.0f && lambda[0] <= 1.0f &&
+            lambda[1] >= 0.0f && lambda[1] <= 1.0f) {*/
+            /* point on face; interpolate zvalue and compare */
+            z = b->vertices[0][2] + lambda[0] * (b->vertices[1][2] - b->vertices[0][2])
+                                  + lambda[1] * (b->vertices[3][2] - b->vertices[0][2]);
+            fprintf(stderr, "a(%d, z): %f, pb(z): %f\n", j, a->vertices[j][2], z);
+            if (a->vertices[j][2] > z)
+                return 1;
+            else if (a->vertices[j][2] < z)
+                return -1;
+/*        }*/
+    }
+#endif
     return 0;
+}
+
+void _mesh_face_update_bounding_box(struct SVGFace *face)
+{
+    double xr[2], yr[2];
+    guint8 j;
+
+    xr[0] = xr[1] = face->vertices[0][0];
+    yr[0] = yr[1] = face->vertices[0][1];
+
+    for (j = 1; j < 4; ++j) {
+        if (xr[0] > face->vertices[j][0])
+            xr[0] = face->vertices[j][0];
+        if (xr[1] < face->vertices[j][0])
+            xr[1] = face->vertices[j][0];
+        if (yr[0] > face->vertices[j][1])
+            yr[0] = face->vertices[j][1];
+        if (yr[1] < face->vertices[j][1])
+            yr[1] = face->vertices[j][1];
+    }
+
+    face->bounding_box.x = xr[0];
+    face->bounding_box.y = yr[0];
+    face->bounding_box.width = xr[1] - xr[0];
+    face->bounding_box.height = yr[1] - yr[0];
 }
 
 GList *mesh_export_generate_faces(MatrixMesh *mesh, double *projection, UtilRectangle *bounding_box)
@@ -73,6 +139,8 @@ GList *mesh_export_generate_faces(MatrixMesh *mesh, double *projection, UtilRect
     struct SVGFace *face;
     guint8 j;
     double xr[2], yr[2];
+    double zrefpoint[3];
+    double zrefproj[3];
     gboolean bd_initialized = FALSE;
 
 #ifdef DEBUG
@@ -90,7 +158,9 @@ GList *mesh_export_generate_faces(MatrixMesh *mesh, double *projection, UtilRect
         for (j = 0; j < 4; ++j) {
             mesh_export_world_to_screen(projection, mesh->chunk_faces[iter.chunk][iter.offset].vertices[j], face->vertices[j]);
         }
+/*        _mesh_face_update_bounding_box(face);*/
 
+        /* FIXME: when we already have the bounding box, use util_rectangle_bounds to expand current box by this rectangle */
         if (G_UNLIKELY(!bd_initialized)) {
             xr[0] = xr[1] = face->vertices[0][0];
             yr[0] = yr[1] = face->vertices[0][1];
@@ -114,15 +184,19 @@ GList *mesh_export_generate_faces(MatrixMesh *mesh, double *projection, UtilRect
         face->color[2] = mesh->chunk_faces[iter.chunk][iter.offset].color_rgb[2];
         face->color[3] = 1.0f;
 
-        face->zlevel = 0.25f * (face->vertices[0][2] +
-                                face->vertices[1][2] +
-                                face->vertices[2][2] +
-                                face->vertices[3][2]);
-/*        face->zlevel = face->vertices[0][2];
-        for (j=1; j<4; ++j) {
-            if (face->vertices[j][2] > face->zlevel)
-                face->zlevel = face->vertices[j][2];
-        }*/
+        /* use center in z=0 plane */
+        zrefpoint[0] = 0.25f * (mesh->chunk_faces[iter.chunk][iter.offset].vertices[0][0] +
+                                mesh->chunk_faces[iter.chunk][iter.offset].vertices[1][0] +
+                                mesh->chunk_faces[iter.chunk][iter.offset].vertices[2][0] +
+                                mesh->chunk_faces[iter.chunk][iter.offset].vertices[3][0]);
+        zrefpoint[1] = 0.25f * (mesh->chunk_faces[iter.chunk][iter.offset].vertices[0][1] +
+                                mesh->chunk_faces[iter.chunk][iter.offset].vertices[1][1] +
+                                mesh->chunk_faces[iter.chunk][iter.offset].vertices[2][1] +
+                                mesh->chunk_faces[iter.chunk][iter.offset].vertices[3][1]);
+        zrefpoint[2] = 0.0f;
+        mesh_export_world_to_screen(projection, zrefpoint, zrefproj);
+
+        face->zvalue = zrefproj[2];
 
         faces = g_list_prepend(faces, face);
     }

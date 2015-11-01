@@ -48,3 +48,14 @@ void util_rectangle_crop(UtilRectangle *rect, UtilRectangle *crop)
     rect->width = xr[0] < xr[1] ? xr[1]-xr[0]+1.0f : 0.0f;
     rect->height = yr[0] < yr[1] ? yr[1]-yr[0]+1.0f : 0.0f;
 }
+
+int util_do_rectangles_overlap(UtilRectangle *r1, UtilRectangle *r2)
+{
+    if (r1 == NULL || r2 == NULL)
+        return 0;
+    if (r1->x <= r2->x + r2->width && r1->x + r1->width >= r2->x &&
+        r1->y + r1->height >= r2->y && r1->y <= r2->y + r2->height)
+        return 1;
+    return 0;
+}
+
