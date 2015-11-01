@@ -184,7 +184,7 @@ GList *mesh_export_generate_faces(MatrixMesh *mesh, double *projection, UtilRect
         face->color[2] = mesh->chunk_faces[iter.chunk][iter.offset].color_rgb[2];
         face->color[3] = 1.0f;
 
-        /* use center in z=0 plane */
+        /* use center in z=0 plane; this provides correct results in our special setting */
         zrefpoint[0] = 0.25f * (mesh->chunk_faces[iter.chunk][iter.offset].vertices[0][0] +
                                 mesh->chunk_faces[iter.chunk][iter.offset].vertices[1][0] +
                                 mesh->chunk_faces[iter.chunk][iter.offset].vertices[2][0] +
