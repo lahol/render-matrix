@@ -42,68 +42,10 @@ void mesh_export_world_to_screen(double *projection, double *wv, double *sv)
 
 gint mesh_export_sort_zlevel(struct SVGFace *a, struct SVGFace *b)
 {
-#if 0
-    DEBUG
-    int i;
-    double min_y_a = a->vertices[0][2];
-    double min_y_b = b->vertices[0][2];
-    for (i = 1; i < 4; ++i) {
-        if (min_y_a > a->vertices[i][2])
-            min_y_a = a->vertices[i][2];
-        if (min_y_b > b->vertices[i][2])
-            min_y_b = b->vertices[i][2];
-    }
-
-    if (min_y_a < 2200.0f && min_y_b < 2200.0f) {
-        fprintf(stderr, "min_y (%.2f, %.2f), z: cmp(%f, %f): %d\n",
-                min_y_a, min_y_b, a->zlevel, b->zlevel, a->zlevel < b->zlevel ? -1 : (a->zlevel > b->zlevel ? 1 : 0));
-    }
-    
-#endif
-/*    fprintf(stderr, "a(%.2f, %.2f), (%.2f x %.2f)\nb(%.2f,%2f), (%.2f x %.2f)\n",
-            a->bounding_box.x, a->bounding_box.y, a->bounding_box.width, a->bounding_box.height,
-            b->bounding_box.x, b->bounding_box.y, b->bounding_box.width, b->bounding_box.height);*/
-/*    if (!util_do_rectangles_overlap(&(a->bounding_box), &(b->bounding_box))) {
-        return 0;
-    }*/
     if (a->zvalue < b->zvalue)
         return -1;
     if (a->zvalue > b->zvalue)
         return 1;
-#if 0
-    /* project points of a on face of b (is more or less rectangle)
-     * get coordinates in terms of v0->v1; v0->v3 if in [0,1] -> interpolate z value and compare
-     * if no such point is found they do not overlap */
-    double u1[2], u2[2];
-    u1[0] = b->vertices[1][0] - b->vertices[0][0];
-    u1[1] = b->vertices[1][1] - b->vertices[0][1];
-    u2[0] = b->vertices[3][0] - b->vertices[0][0];
-    u2[1] = b->vertices[3][1] - b->vertices[0][1];
-
-    double det = u1[0]*u2[1] - u1[1]*u2[0];
-    if (det == 0)
-        return 0;
-
-    double lambda[2];
-    guint8 j;
-    double z;
-    for (j = 0; j < 4; ++j) {
-        lambda[0] = (u2[1] * a->vertices[j][0] - u2[0] * a->vertices[j][1]) / det;
-        lambda[1] = (u1[0] * a->vertices[j][1] - u1[1] * a->vertices[j][0]) / det;
-    /*    fprintf(stderr, "lambda: %f, %f\n", lambda[0], lambda[1]);
-        if (lambda[0] >= 0.0f && lambda[0] <= 1.0f &&
-            lambda[1] >= 0.0f && lambda[1] <= 1.0f) {*/
-            /* point on face; interpolate zvalue and compare */
-            z = b->vertices[0][2] + lambda[0] * (b->vertices[1][2] - b->vertices[0][2])
-                                  + lambda[1] * (b->vertices[3][2] - b->vertices[0][2]);
-            fprintf(stderr, "a(%d, z): %f, pb(z): %f\n", j, a->vertices[j][2], z);
-            if (a->vertices[j][2] > z)
-                return 1;
-            else if (a->vertices[j][2] < z)
-                return -1;
-/*        }*/
-    }
-#endif
     return 0;
 }
 
@@ -274,6 +216,7 @@ void mesh_render_faces(cairo_t *cr, GList *faces)
         cairo_line_to(cr, face->vertices[1][0], face->vertices[1][1]);
         cairo_line_to(cr, face->vertices[2][0], face->vertices[2][1]);
         cairo_line_to(cr, face->vertices[3][0], face->vertices[3][1]);
+        cairo_close_path(cr);
 
         cairo_set_source_rgba(cr, face->color[0], face->color[1], face->color[2], face->color[3]);
         cairo_fill_preserve(cr);
