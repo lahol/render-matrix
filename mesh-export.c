@@ -265,30 +265,30 @@ gboolean _mesh_point_in_face(double *vertex, struct SVGFace *face)
     if (  (b[1] - face->vertices[0][1]) * (face->vertices[1][0] - face->vertices[0][0])
         - (b[0] - face->vertices[0][0]) * (face->vertices[1][1] - face->vertices[0][1]) > 0) {
         if (  (vertex[1] - face->vertices[0][1]) * (face->vertices[1][0] - face->vertices[0][0])
-            - (vertex[0] - face->vertices[0][0]) * (face->vertices[1][1] - face->vertices[0][1]) < 0)
+            - (vertex[0] - face->vertices[0][0]) * (face->vertices[1][1] - face->vertices[0][1]) <= 0)
             return FALSE;
         if (  (vertex[1] - face->vertices[1][1]) * (face->vertices[2][0] - face->vertices[1][0])
-            - (vertex[0] - face->vertices[1][0]) * (face->vertices[2][1] - face->vertices[1][1]) < 0)
+            - (vertex[0] - face->vertices[1][0]) * (face->vertices[2][1] - face->vertices[1][1]) <= 0)
             return FALSE;
         if (  (vertex[1] - face->vertices[2][1]) * (face->vertices[3][0] - face->vertices[2][0])
-            - (vertex[0] - face->vertices[2][0]) * (face->vertices[3][1] - face->vertices[2][1]) < 0)
+            - (vertex[0] - face->vertices[2][0]) * (face->vertices[3][1] - face->vertices[2][1]) <= 0)
             return FALSE;
         if (  (vertex[1] - face->vertices[3][1]) * (face->vertices[0][0] - face->vertices[3][0])
-            - (vertex[0] - face->vertices[3][0]) * (face->vertices[0][1] - face->vertices[3][1]) < 0)
+            - (vertex[0] - face->vertices[3][0]) * (face->vertices[0][1] - face->vertices[3][1]) <= 0)
             return FALSE;
     }
     else {
         if (  (vertex[1] - face->vertices[0][1]) * (face->vertices[1][0] - face->vertices[0][0])
-            - (vertex[0] - face->vertices[0][0]) * (face->vertices[1][1] - face->vertices[0][1]) > 0)
+            - (vertex[0] - face->vertices[0][0]) * (face->vertices[1][1] - face->vertices[0][1]) >= 0)
             return FALSE;
         if (  (vertex[1] - face->vertices[1][1]) * (face->vertices[2][0] - face->vertices[1][0])
-            - (vertex[0] - face->vertices[1][0]) * (face->vertices[2][1] - face->vertices[1][1]) > 0)
+            - (vertex[0] - face->vertices[1][0]) * (face->vertices[2][1] - face->vertices[1][1]) >= 0)
             return FALSE;
         if (  (vertex[1] - face->vertices[2][1]) * (face->vertices[3][0] - face->vertices[2][0])
-            - (vertex[0] - face->vertices[2][0]) * (face->vertices[3][1] - face->vertices[2][1]) > 0)
+            - (vertex[0] - face->vertices[2][0]) * (face->vertices[3][1] - face->vertices[2][1]) >= 0)
             return FALSE;
         if (  (vertex[1] - face->vertices[3][1]) * (face->vertices[0][0] - face->vertices[3][0])
-            - (vertex[0] - face->vertices[3][0]) * (face->vertices[0][1] - face->vertices[3][1]) > 0)
+            - (vertex[0] - face->vertices[3][0]) * (face->vertices[0][1] - face->vertices[3][1]) >= 0)
             return FALSE;
     }
     return TRUE;
