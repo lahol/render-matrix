@@ -8,8 +8,17 @@ typedef enum {
     ExportFileTypeSVG = 0,
     ExportFileTypePDF,
     ExportFileTypePNG,
+    ExportFileTypeTikZ,
 } ExportFileType;
+
+typedef struct {
+    ExportFileType type;
+    gboolean remove_hidden;
+    gboolean standalone;
+    double image_width;
+} ExportConfig;
 
 ExportFileType mesh_export_get_type_from_filename(const gchar *filename);
 
-gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection, gboolean remove_hidden);
+gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection,
+                             ExportConfig *config);

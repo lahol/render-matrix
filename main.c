@@ -35,6 +35,7 @@ struct {
     double elevation;
     double tilt;
     double alpha_channel;
+    double export_width;
 
     gchar *output_filename;
     gboolean permutate_entries;
@@ -42,6 +43,7 @@ struct {
     gboolean shift_signs;
     gboolean log_scale;
     gboolean optimize;
+    gboolean export_standalone;
 } config;
 
 void main_config_default(void)
@@ -53,12 +55,14 @@ void main_config_default(void)
     config.elevation = -60.0;
     config.tilt = 0.0;
     config.alpha_channel = 1.0;
+    config.export_width = 15.0;
 
     config.permutate_entries = FALSE;
     config.alternate_signs = FALSE;
     config.shift_signs = FALSE;
     config.log_scale = FALSE;
     config.optimize = FALSE;
+    config.export_standalone = FALSE;
 }
 
 static void camera_value_changed(GtkSpinButton *button, gpointer userdata)
@@ -103,12 +107,19 @@ void main_save_matrix_to_file(const gchar *filename)
 {
     ExportFileType type = mesh_export_get_type_from_filename(filename);
 
+    ExportConfig expconfig;
+    expconfig.type = type;
+    expconfig.remove_hidden = config.optimize;
+    expconfig.image_width = config.export_width;
+    expconfig.standalone = config.export_standalone;
+
     switch (type) {
         case ExportFileTypePNG:
             gl_widget_save_to_file(GL_WIDGET(appdata.glwidget), filename);
             break;
         case ExportFileTypePDF:
         case ExportFileTypeSVG:
+        case ExportFileTypeTikZ:
             {
                 MatrixMesh *mesh = matrix_mesh_new();
                 matrix_mesh_set_alpha_channel(mesh, config.alpha_channel);
@@ -116,7 +127,7 @@ void main_save_matrix_to_file(const gchar *filename)
 
                 double projection[16];
                 util_get_rotation_matrix_from_angles(projection, config.azimuth, config.elevation, config.tilt);
-                mesh_export_to_file(filename, type, mesh, projection, config.optimize);
+                mesh_export_to_file(filename, type, mesh, projection, &expconfig);
 
                 matrix_mesh_free(mesh);
             }
@@ -276,6 +287,8 @@ static GOptionEntry _command_line_options[] = {
     { "output", 'o', 0, G_OPTION_ARG_FILENAME, &config.output_filename, "Output filename", "Filename" },
     { "optimize", 'O', 0, G_OPTION_ARG_NONE, &config.optimize, "Remove hidden faces from output", NULL },
     { "alpha", 'A', 0, G_OPTION_ARG_DOUBLE, &config.alpha_channel, "Alpha channel (between 0.0 and 1.0)", NULL },
+    { "standalone", 's', 0, G_OPTION_ARG_NONE, &config.export_standalone, "Produce standalone file", NULL },
+    { "width", 'w', 0, G_OPTION_ARG_DOUBLE, &config.export_width, "Width of TikZ picture", NULL },
     { NULL }
 };
 

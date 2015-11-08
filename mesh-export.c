@@ -26,6 +26,8 @@ ExportFileType mesh_export_get_type_from_filename(const gchar *filename)
         return ExportFileTypeSVG;
     if (g_str_has_suffix(filename, ".png"))
         return ExportFileTypePNG;
+    if (g_str_has_suffix(filename, ".tex"))
+        return ExportFileTypeTikZ;
 
     return ExportFileTypeUnknown;
 }
@@ -231,6 +233,66 @@ void mesh_render_faces(cairo_t *cr, GList *faces)
     }
 }
 
+void _mesh_render_faces_tikz_define_color(guint32 key, double *value, FILE *file)
+{
+    fprintf(file, "\\definecolor{matcol%06x}{rgb}{%f,%f,%f}\n",
+            key, value[0], value[1], value[2]);
+}
+
+void mesh_render_faces_tikz(FILE *file, GList *faces, UtilRectangle *bounding_box, ExportConfig *config)
+{
+    GList *tmp;
+    struct SVGFace *face;
+    guint8 j;
+
+#define COLORHASH(col) (((guint8)(255 * (col)[0])) << 16 | ((guint8)(255 * (col)[1])) << 8 | ((guint8)(255 * (col)[2])))
+
+    /* FIXME: make this configurable by user */
+    double image_width = (config && config->image_width > 0) ? config->image_width : 15;
+    double scale = image_width / bounding_box->width;
+
+    if (config && config->standalone)
+        fprintf(file, "\\documentclass{standalone}\n\\usepackage{tikz}\n\n\\begin{document}\n\\begin{tikzpicture}\n");
+
+    fprintf(file, "\\definecolor{edgecolor}{rgb}{0.4,0.4,0.4}\n");
+
+    /* collect colors */
+    GHashTable *colortable = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+    guint32 colorhash;
+    double *colorvalue;
+    for (tmp = faces; tmp; tmp = g_list_next(tmp)) {
+        face = (struct SVGFace *)tmp->data;
+        colorhash = COLORHASH(face->color);
+        colorvalue = g_malloc(4 * sizeof(double));
+        colorvalue[0] = face->color[0];
+        colorvalue[1] = face->color[1];
+        colorvalue[2] = face->color[2];
+        colorvalue[3] = face->color[3];
+        g_hash_table_insert(colortable, GUINT_TO_POINTER(colorhash), colorvalue);
+    }
+
+    g_hash_table_foreach(colortable, (GHFunc)_mesh_render_faces_tikz_define_color, file);
+
+    g_hash_table_destroy(colortable);
+
+    for (tmp = faces; tmp; tmp = g_list_next(tmp)) {
+        face = (struct SVGFace *)tmp->data;
+
+        fprintf(file, "\t\\draw[color=edgecolor,fill=matcol%06x] ", COLORHASH(face->color));
+        for (j = 0; j < 4; ++j) {
+            fprintf(file, "(%f,%f) -- ",
+                    (face->vertices[j][0] - bounding_box->x) * scale,
+                    (bounding_box->height - face->vertices[j][1]) * scale);
+        }
+        fprintf(file, "cycle;\n");
+    }
+
+    if (config && config->standalone)
+        fprintf(file, "\\end{tikzpicture}\n\\end{document}\n");
+
+#undef COLORHASH
+}
+
 void mesh_render_grid(cairo_t *cr, UtilRectangle *bounding_box)
 {
     int i;
@@ -343,12 +405,13 @@ GList *mesh_remove_hidden_faces(GList *faces)
 }
 
 gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection,
-                             gboolean remove_hidden)
+                             ExportConfig *config)
 {
     g_return_val_if_fail(mesh != NULL, FALSE);
 
     cairo_surface_t *surface = NULL;
     cairo_t *cr = NULL;
+    FILE *file = NULL;
 
     UtilRectangle bounding_box;
     GList *faces = mesh_export_generate_faces(mesh, projection, &bounding_box);
@@ -366,21 +429,44 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
         case ExportFileTypePNG:
             /* TODO: image surface, get data, write to png */
             return FALSE;
+        case ExportFileTypeTikZ:
+            break;
         default:
             return FALSE;
     }
 
-    cr = cairo_create(surface);
-    cairo_translate(cr, -bounding_box.x, -bounding_box.y);
-
-    if (remove_hidden)
+    if (config && config->remove_hidden)
         faces = mesh_remove_hidden_faces(faces);
-    mesh_render_faces(cr, faces);
-/*    mesh_render_grid(cr, &bounding_box);*/
+    
+    switch (type) {
+        case ExportFileTypePDF:
+        case ExportFileTypeSVG:
+            cr = cairo_create(surface);
+            cairo_translate(cr, -bounding_box.x, -bounding_box.y);
+
+            mesh_render_faces(cr, faces);
+
+            cairo_destroy(cr);
+            cairo_surface_destroy(surface);
+            break;
+        case ExportFileTypeTikZ:
+            if ((file = fopen(filename, "w")) == NULL) {
+                fprintf(stderr, "Could not open `%s'.\n", filename);
+                g_list_free_full(faces, g_free);
+                return FALSE;
+            }
+
+            mesh_render_faces_tikz(file, faces, &bounding_box, config);
+
+            fclose(file);
+            break;
+        case ExportFileTypePNG:
+            break;
+        default:
+            break;
+    }
 
     g_list_free_full(faces, g_free);
-    cairo_destroy(cr);
-    cairo_surface_destroy(surface);
 
     return TRUE;
 }
