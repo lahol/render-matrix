@@ -20,7 +20,11 @@ void matrix_mesh_clear(MatrixMesh *mesh)
         g_free(mesh->chunk_faces[i]);
     g_free(mesh->chunk_faces);
 
+    double alpha_channel = mesh->alpha_channel;
+
     memset(mesh, 0, sizeof(MatrixMesh));
+
+    mesh->alpha_channel = alpha_channel;
 }
 
 void matrix_mesh_free(MatrixMesh *mesh)
@@ -36,9 +40,10 @@ void matrix_mesh_set_matrix(MatrixMesh *mesh, Matrix *matrix)
     matrix_mesh_update(mesh);
 }
 
-void matrix_mesh_plane_face(MatrixMeshFace *face, double x, double y, double z, double d1, double d2)
+void matrix_mesh_plane_face(MatrixMeshFace *face, double x, double y, double z, double d1, double d2, double alpha_channel)
 {
-    util_color_gradient_rgb(face->color_hue, face->color_rgb);
+    util_color_gradient_rgb(face->color_hue, face->color_rgba);
+    face->color_rgba[3] = alpha_channel;
 
     switch (face->plane) {
         case MatrixMeshFacePlaneXY:
@@ -74,6 +79,14 @@ void matrix_mesh_plane_face(MatrixMeshFace *face, double x, double y, double z, 
         default:
             fprintf(stderr, "plane orientation not handled\n");
     }
+}
+
+void matrix_mesh_set_alpha_channel(MatrixMesh *mesh, double alpha_channel)
+{
+    if (!mesh)
+        return;
+    /* TODO: run through all faces and update alpha channel */
+    mesh->alpha_channel = alpha_channel;
 }
 
 void matrix_mesh_update(MatrixMesh *mesh)
@@ -133,7 +146,7 @@ void matrix_mesh_update(MatrixMesh *mesh)
         face->plane = MatrixMeshFacePlaneXY;
         face->color_hue = z - range[0];
 
-        matrix_mesh_plane_face(face, x, y, z, dx, dy);
+        matrix_mesh_plane_face(face, x, y, z, dx, dy, mesh->alpha_channel);
     }
 
     /* only render visible areas, switch colors if signs of neighbours differ otherwise
@@ -157,14 +170,14 @@ void matrix_mesh_update(MatrixMesh *mesh)
                 face->plane = MatrixMeshFacePlaneYZ;
                 face->color_hue = zc - range[0];
 
-                matrix_mesh_plane_face(face, x, y, 0, dy, zc);
+                matrix_mesh_plane_face(face, x, y, 0, dy, zc, mesh->alpha_channel);
 
                 if (j > 0) {
                     face = matrix_mesh_append_face(mesh, &fiter);
                     face->plane = MatrixMeshFacePlaneYZ;
                     face->color_hue = zl - range[0];
 
-                    matrix_mesh_plane_face(face, x, y, 0, dy, zl);
+                    matrix_mesh_plane_face(face, x, y, 0, dy, zl, mesh->alpha_channel);
                 }
             }
             else {
@@ -175,7 +188,7 @@ void matrix_mesh_update(MatrixMesh *mesh)
                 else
                     face->color_hue = zl - range[0];
 
-                matrix_mesh_plane_face(face, x, y, zl, dy, zc - zl);
+                matrix_mesh_plane_face(face, x, y, zl, dy, zc - zl, mesh->alpha_channel);
             }
 
             zl = zc;
@@ -185,7 +198,7 @@ void matrix_mesh_update(MatrixMesh *mesh)
         face->plane = MatrixMeshFacePlaneYZ;
         face->color_hue = zl - range[0];
 
-        matrix_mesh_plane_face(face, 0.5f, y, 0, dy, zl);
+        matrix_mesh_plane_face(face, 0.5f, y, 0, dy, zl, mesh->alpha_channel);
     }
 
     for (j = 0; j < m->n_columns; ++j) {
@@ -201,14 +214,14 @@ void matrix_mesh_update(MatrixMesh *mesh)
                 face->plane = MatrixMeshFacePlaneXZ;
                 face->color_hue = zc - range[0];
 
-                matrix_mesh_plane_face(face, x, y, 0, dx, zc);
+                matrix_mesh_plane_face(face, x, y, 0, dx, zc, mesh->alpha_channel);
 
                 if (i > 0) {
                     face = matrix_mesh_append_face(mesh, &fiter);
                     face->plane = MatrixMeshFacePlaneXZ;
                     face->color_hue = zl - range[0];
 
-                    matrix_mesh_plane_face(face, x, y, 0, dx, zl);
+                    matrix_mesh_plane_face(face, x, y, 0, dx, zl, mesh->alpha_channel);
                 }
             }
             else {
@@ -219,7 +232,7 @@ void matrix_mesh_update(MatrixMesh *mesh)
                 else
                     face->color_hue = zl - range[0];
 
-                matrix_mesh_plane_face(face, x, y, zl, dx, zc - zl);
+                matrix_mesh_plane_face(face, x, y, zl, dx, zc - zl, mesh->alpha_channel);
             }
 
             zl = zc;
@@ -229,7 +242,7 @@ void matrix_mesh_update(MatrixMesh *mesh)
         face->plane = MatrixMeshFacePlaneXZ;
         face->color_hue = zl - range[0];
 
-        matrix_mesh_plane_face(face, x, -0.5f, 0, dx, zl);
+        matrix_mesh_plane_face(face, x, -0.5f, 0, dx, zl, mesh->alpha_channel);
     }
 }
 

@@ -60,6 +60,7 @@ struct _GraphicsHandle {
     guint32 display_list_valid : 1;
 
     Matrix *matrix_data;
+    double alpha_channel;
 
     double max;
     double min;
@@ -418,6 +419,8 @@ GraphicsHandle *graphics_init(void)
     handle->zoom_factor = 512.0f;
     handle->zoom_level = 0;
 
+    handle->alpha_channel = 1.0f;
+
     handle->display_list_valid = 0;
     handle->display_list_initialized = 0;
 
@@ -482,6 +485,14 @@ void graphics_render_matrix(GraphicsHandle *handle)
         return;
     }
 
+    MatrixMesh *mesh = matrix_mesh_new();
+    matrix_mesh_set_alpha_channel(mesh, handle->alpha_channel);
+    matrix_mesh_set_matrix(mesh, handle->matrix_data);
+    MatrixMeshIter fiter;
+    MatrixMeshFace *face;
+
+    int j;
+
     glNewList(handle->display_list, GL_COMPILE_AND_EXECUTE);
 
     glDisable(GL_TEXTURE_RECTANGLE_ARB);
@@ -494,18 +505,11 @@ void graphics_render_matrix(GraphicsHandle *handle)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBegin(GL_QUADS);
 
-    MatrixMesh *mesh = matrix_mesh_new();
-    matrix_mesh_set_matrix(mesh, handle->matrix_data);
-    MatrixMeshIter fiter;
-    MatrixMeshFace *face;
-
-    int j;
-
     for (matrix_mesh_iter_init(mesh, &fiter);
          matrix_mesh_iter_is_valid(mesh, &fiter);
          matrix_mesh_iter_next(mesh, &fiter)) {
         face = &mesh->chunk_faces[fiter.chunk][fiter.offset];
-        glColor4f(face->color_rgb[0], face->color_rgb[1], face->color_rgb[2], 1.0f);
+        glColor4f(face->color_rgba[0], face->color_rgba[1], face->color_rgba[2], face->color_rgba[3]);
 
         for (j = 0; j < 4; ++j)
             glVertex3f(face->vertices[j][0], face->vertices[j][1], face->vertices[j][2]);
@@ -994,6 +998,13 @@ void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix)
     handle->matrix_data = matrix;
 
     graphics_update_matrix_data(handle);
+}
+
+void graphics_set_alpha_channel(GraphicsHandle *handle, double alpha_channel)
+{
+    g_return_if_fail(handle != NULL);
+
+    handle->alpha_channel = alpha_channel;
 }
 
 void graphics_save_buffer_to_file(GraphicsHandle *handle, const gchar *filename)

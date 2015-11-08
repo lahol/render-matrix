@@ -34,6 +34,7 @@ struct {
     double azimuth;
     double elevation;
     double tilt;
+    double alpha_channel;
 
     gchar *output_filename;
     gboolean permutate_entries;
@@ -50,6 +51,7 @@ void main_config_default(void)
     config.azimuth = 65.0;
     config.elevation = -60.0;
     config.tilt = 0.0;
+    config.alpha_channel = 1.0;
 
     config.permutate_entries = FALSE;
     config.alternate_signs = FALSE;
@@ -107,6 +109,7 @@ void main_save_matrix_to_file(const gchar *filename)
         case ExportFileTypeSVG:
             {
                 MatrixMesh *mesh = matrix_mesh_new();
+                matrix_mesh_set_alpha_channel(mesh, config.alpha_channel);
                 matrix_mesh_set_matrix(mesh, appdata.display_matrix);
 
                 double projection[16];
@@ -167,6 +170,7 @@ static void save_to_file_button_clicked(GtkButton *button, gpointer userdata)
 void main_init_ui(void)
 {
     appdata.graphics_handle = graphics_init();
+    graphics_set_alpha_channel(appdata.graphics_handle, config.alpha_channel);
     graphics_set_matrix_data(appdata.graphics_handle, appdata.display_matrix);
 
     graphics_set_camera(appdata.graphics_handle, config.azimuth, config.elevation, config.tilt);
@@ -268,6 +272,8 @@ static GOptionEntry _command_line_options[] = {
     { "shift-signs", 'S', 0, G_OPTION_ARG_NONE, &config.shift_signs, "Shift signs (only with --alternate-signs)", NULL },
     { "log-scale", 'L', 0, G_OPTION_ARG_NONE, &config.log_scale, "Use log-scale, i.e. sgn(value) * log(1+|value|)", NULL },
     { "output", 'o', 0, G_OPTION_ARG_FILENAME, &config.output_filename, "Output filename", "Filename" },
+    { "optimize", 'O', 0, G_OPTION_ARG_NONE, &config.optimize, "Remove hidden faces from output", NULL },
+    { "alpha", 'A', 0, G_OPTION_ARG_DOUBLE, &config.alpha_channel, "Alpha channel (between 0.0 and 1.0)", NULL },
     { NULL }
 };
 

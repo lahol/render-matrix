@@ -179,10 +179,10 @@ GList *mesh_export_generate_faces(MatrixMesh *mesh, double *projection, UtilRect
         }
     
 
-        face->color[0] = mesh->chunk_faces[iter.chunk][iter.offset].color_rgb[0];
-        face->color[1] = mesh->chunk_faces[iter.chunk][iter.offset].color_rgb[1];
-        face->color[2] = mesh->chunk_faces[iter.chunk][iter.offset].color_rgb[2];
-        face->color[3] = 1.0f;
+        face->color[0] = mesh->chunk_faces[iter.chunk][iter.offset].color_rgba[0];
+        face->color[1] = mesh->chunk_faces[iter.chunk][iter.offset].color_rgba[1];
+        face->color[2] = mesh->chunk_faces[iter.chunk][iter.offset].color_rgba[2];
+        face->color[3] = mesh->chunk_faces[iter.chunk][iter.offset].color_rgba[3];
 
         /* use center in z=0 plane; this provides correct results in our special setting */
         zrefpoint[0] = 0.25f * (mesh->chunk_faces[iter.chunk][iter.offset].vertices[0][0] +
@@ -268,7 +268,7 @@ void mesh_render_faces(cairo_t *cr, GList *faces)
                 face->vertices[1][0], face->vertices[1][1], face->vertices[1][2],
                 face->vertices[2][0], face->vertices[2][1], face->vertices[2][2],
                 face->vertices[3][0], face->vertices[3][1], face->vertices[3][2],
-                face->zlevel, face->color[0], face->color[1], face->color[2]);
+                face->zvalue, face->color[0], face->color[1], face->color[2]);
 #endif
         cairo_move_to(cr, face->vertices[0][0], face->vertices[0][1]);
         cairo_line_to(cr, face->vertices[1][0], face->vertices[1][1]);

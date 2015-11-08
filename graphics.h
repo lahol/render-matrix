@@ -41,6 +41,7 @@ void graphics_camera_arcball_rotate_finish(GraphicsHandle *handle, double x, dou
 
 void graphics_set_matrix_data(GraphicsHandle *handle, Matrix *matrix);
 void graphics_update_matrix_data(GraphicsHandle *handle);
+void graphics_set_alpha_channel(GraphicsHandle *handle, double alpha_channel);
 
 void graphics_save_buffer_to_file(GraphicsHandle *handle, const gchar *filename);
 void graphics_get_render_area(GraphicsHandle *handle, UtilRectangle *render_area);

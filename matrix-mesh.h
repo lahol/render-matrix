@@ -12,7 +12,7 @@ typedef enum {
 
 typedef struct {
     double vertices[4][3];
-    double color_rgb[3];
+    double color_rgba[4];
     double color_hue;
 
     MatrixMeshFacePlane plane;
@@ -32,10 +32,12 @@ typedef struct {
     guint32 n_chunks;
     MatrixMeshFace **chunk_faces;
     double zrange[2];
+    double alpha_channel;
 } MatrixMesh;
 
 MatrixMesh *matrix_mesh_new(void);
 void matrix_mesh_set_matrix(MatrixMesh *mesh, Matrix *matrix);
+void matrix_mesh_set_alpha_channel(MatrixMesh *mesh, double alpha_channel);
 void matrix_mesh_update(MatrixMesh *mesh);
 void matrix_mesh_iter_init(MatrixMesh *mesh, MatrixMeshIter *iter);
 void matrix_mesh_free(MatrixMesh *mesh);
