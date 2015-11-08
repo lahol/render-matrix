@@ -85,8 +85,15 @@ void matrix_mesh_set_alpha_channel(MatrixMesh *mesh, double alpha_channel)
 {
     if (!mesh)
         return;
-    /* TODO: run through all faces and update alpha channel */
     mesh->alpha_channel = alpha_channel;
+
+    MatrixMeshIter fiter;
+
+    for (matrix_mesh_iter_init(mesh, &fiter);
+         matrix_mesh_iter_is_valid(mesh, &fiter);
+         matrix_mesh_iter_next(mesh, &fiter)) {
+        mesh->chunk_faces[fiter.chunk][fiter.offset].color_rgba[3] = alpha_channel;
+    }
 }
 
 void matrix_mesh_update(MatrixMesh *mesh)
