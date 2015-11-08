@@ -12,4 +12,4 @@ typedef enum {
 
 ExportFileType mesh_export_get_type_from_filename(const gchar *filename);
 
-gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection);
+gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection, gboolean remove_hidden);

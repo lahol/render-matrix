@@ -6,11 +6,16 @@
 #include <cairo-svg.h>
 #include <cairo-pdf.h>
 
+enum SVGFaceFlags {
+    SVGFF_Required = (1 << 0)
+};
+
 struct SVGFace {
     double vertices[4][3];
     double color[4];
     UtilRectangle bounding_box;
     double zvalue;
+    guint32 flags;
 };
 
 ExportFileType mesh_export_get_type_from_filename(const gchar *filename)
@@ -34,10 +39,10 @@ void mesh_export_world_to_screen(double *projection, double *wv, double *sv)
     sv[0] = (vs[0] + 1.0f) * 0.5f * 10.0f * 72;
     sv[1] = (1.0f - vs[1]) * 0.5f * 10.0f * 72;
     sv[2] = vs[2];
-#ifdef DEBUG
+/*#ifdef DEBUG
     fprintf(stderr, "(%.2f, %.2f, %.2f) -> (%.2f, %.2f, %.2f) [%.2f, %.2f, %.2f]\n",
             wv[0], wv[1], wv[2], sv[0], sv[1], sv[2], vs[0], vs[1], vs[2]);
-#endif
+#endif*/
 }
 
 gint mesh_export_sort_zlevel(struct SVGFace *a, struct SVGFace *b)
@@ -85,10 +90,10 @@ GList *mesh_export_generate_faces(MatrixMesh *mesh, double *projection, UtilRect
     double zrefproj[3];
     gboolean bd_initialized = FALSE;
 
-#ifdef DEBUG
+/*#ifdef DEBUG
     for (j=0; j < 16; j+=4)
         fprintf(stderr, "proj: [%.3f %.3f %.3f %.3f]\n", projection[j], projection[j+1], projection[j+2], projection[j+3]);
-#endif
+#endif*/
 
     for (matrix_mesh_iter_init(mesh, &iter);
          matrix_mesh_iter_is_valid(mesh, &iter);
@@ -204,14 +209,14 @@ void mesh_render_faces(cairo_t *cr, GList *faces)
     cairo_set_line_width(cr, 0.4f);
     for (tmp = faces; tmp; tmp = g_list_next(tmp)) {
         face = (struct SVGFace *)tmp->data;
-#ifdef DEBUG
+/*#ifdef DEBUG
         fprintf(stderr, "face: (%.2f,%.2f,%.2f) -> (%.2f,%.2f,%.2f) -> (%.2f,%.2f,%.2f) -> (%.2f,%.2f,%.2f) [zlevel: %.2f; color: %.2f,%.2f,%.2f]\n",
                 face->vertices[0][0], face->vertices[0][1], face->vertices[0][2],
                 face->vertices[1][0], face->vertices[1][1], face->vertices[1][2],
                 face->vertices[2][0], face->vertices[2][1], face->vertices[2][2],
                 face->vertices[3][0], face->vertices[3][1], face->vertices[3][2],
                 face->zvalue, face->color[0], face->color[1], face->color[2]);
-#endif
+#endif*/
         cairo_move_to(cr, face->vertices[0][0], face->vertices[0][1]);
         cairo_line_to(cr, face->vertices[1][0], face->vertices[1][1]);
         cairo_line_to(cr, face->vertices[2][0], face->vertices[2][1]);
@@ -250,7 +255,95 @@ void mesh_render_grid(cairo_t *cr, UtilRectangle *bounding_box)
     }
 }
 
-gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection)
+gboolean _mesh_point_in_face(double *vertex, struct SVGFace *face)
+{
+    /* face is convex; determine winding direction, i.e., take barycenter b and evaluate
+     * -y * b_x + x * b_y </> 0; (x,y) = (p1_x-p0_x,p1_y-p0_y) 
+     * if vertex has the same sign for all edges as this it is inside */
+    double b[2] = { 0.25f * (face->vertices[0][0] + face->vertices[1][0] + face->vertices[2][0] + face->vertices[3][0]),
+                    0.25f * (face->vertices[0][1] + face->vertices[1][1] + face->vertices[2][1] + face->vertices[3][1]) };
+    if (  (b[1] - face->vertices[0][1]) * (face->vertices[1][0] - face->vertices[0][0])
+        - (b[0] - face->vertices[0][0]) * (face->vertices[1][1] - face->vertices[0][1]) > 0) {
+        if (  (vertex[1] - face->vertices[0][1]) * (face->vertices[1][0] - face->vertices[0][0])
+            - (vertex[0] - face->vertices[0][0]) * (face->vertices[1][1] - face->vertices[0][1]) < 0)
+            return FALSE;
+        if (  (vertex[1] - face->vertices[1][1]) * (face->vertices[2][0] - face->vertices[1][0])
+            - (vertex[0] - face->vertices[1][0]) * (face->vertices[2][1] - face->vertices[1][1]) < 0)
+            return FALSE;
+        if (  (vertex[1] - face->vertices[2][1]) * (face->vertices[3][0] - face->vertices[2][0])
+            - (vertex[0] - face->vertices[2][0]) * (face->vertices[3][1] - face->vertices[2][1]) < 0)
+            return FALSE;
+        if (  (vertex[1] - face->vertices[3][1]) * (face->vertices[0][0] - face->vertices[3][0])
+            - (vertex[0] - face->vertices[3][0]) * (face->vertices[0][1] - face->vertices[3][1]) < 0)
+            return FALSE;
+    }
+    else {
+        if (  (vertex[1] - face->vertices[0][1]) * (face->vertices[1][0] - face->vertices[0][0])
+            - (vertex[0] - face->vertices[0][0]) * (face->vertices[1][1] - face->vertices[0][1]) > 0)
+            return FALSE;
+        if (  (vertex[1] - face->vertices[1][1]) * (face->vertices[2][0] - face->vertices[1][0])
+            - (vertex[0] - face->vertices[1][0]) * (face->vertices[2][1] - face->vertices[1][1]) > 0)
+            return FALSE;
+        if (  (vertex[1] - face->vertices[2][1]) * (face->vertices[3][0] - face->vertices[2][0])
+            - (vertex[0] - face->vertices[2][0]) * (face->vertices[3][1] - face->vertices[2][1]) > 0)
+            return FALSE;
+        if (  (vertex[1] - face->vertices[3][1]) * (face->vertices[0][0] - face->vertices[3][0])
+            - (vertex[0] - face->vertices[3][0]) * (face->vertices[0][1] - face->vertices[3][1]) > 0)
+            return FALSE;
+    }
+    return TRUE;
+}
+
+GList *mesh_remove_hidden_faces(GList *faces)
+{
+#ifdef DEBUG
+    fprintf(stderr, "remove hidden faces\n");
+#endif
+    /* traverse faces from front to top
+     * for each face:
+     *   check whether one vertex is truely outside all other faces -> mark face as required
+     * for each face not marked as required:
+     *   for each edge:
+     *     determine intersection points with preceeding faces and check intermediate points*/
+    GList *visible_faces = NULL;
+    GList *tmp, *vis;
+    guint8 occluded;
+    guint8 j;
+
+    for (tmp = g_list_last(faces); tmp != NULL; tmp = g_list_previous(tmp)) {
+        /* visible -> prepend visible faces; else free data (but not link) */
+        occluded = 0;
+        for (vis = visible_faces; vis != NULL && occluded != 0x0f; vis = g_list_next(vis)) {
+            for (j = 0; j < 4; ++j) {
+                if (_mesh_point_in_face(((struct SVGFace *)tmp->data)->vertices[j], (struct SVGFace *)vis->data))
+                    occluded |= (1 << j);
+            }
+        }
+        /* all vertices are occluded */
+        if (occluded == 0x0f) {
+            g_free(tmp->data);
+        }
+        else {
+            ((struct SVGFace *)tmp->data)->flags |= SVGFF_Required;
+            visible_faces = g_list_prepend(visible_faces, tmp->data);
+        }
+    }
+
+    g_list_free(faces);
+
+#ifdef DEBUG
+    fprintf(stderr, "debug face\n");
+    struct SVGFace test;
+    test.vertices[1][0] = test.vertices[2][0] = test.vertices[2][1] = test.vertices[3][1] = 1.0;
+    double vertex[3] = { 0.2, 0.1, 0.0 };
+    _mesh_point_in_face(vertex, &test);
+#endif
+
+    return visible_faces;
+}
+
+gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection,
+                             gboolean remove_hidden)
 {
     g_return_val_if_fail(mesh != NULL, FALSE);
 
@@ -280,6 +373,8 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
     cr = cairo_create(surface);
     cairo_translate(cr, -bounding_box.x, -bounding_box.y);
 
+    if (remove_hidden)
+        faces = mesh_remove_hidden_faces(faces);
     mesh_render_faces(cr, faces);
 /*    mesh_render_grid(cr, &bounding_box);*/
 

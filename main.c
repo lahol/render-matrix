@@ -41,6 +41,7 @@ struct {
     gboolean alternate_signs;
     gboolean shift_signs;
     gboolean log_scale;
+    gboolean optimize;
 } config;
 
 void main_config_default(void)
@@ -57,6 +58,7 @@ void main_config_default(void)
     config.alternate_signs = FALSE;
     config.shift_signs = FALSE;
     config.log_scale = FALSE;
+    config.optimize = FALSE;
 }
 
 static void camera_value_changed(GtkSpinButton *button, gpointer userdata)
@@ -114,7 +116,7 @@ void main_save_matrix_to_file(const gchar *filename)
 
                 double projection[16];
                 util_get_rotation_matrix_from_angles(projection, config.azimuth, config.elevation, config.tilt);
-                mesh_export_to_file(filename, type, mesh, projection);
+                mesh_export_to_file(filename, type, mesh, projection, config.optimize);
 
                 matrix_mesh_free(mesh);
             }
