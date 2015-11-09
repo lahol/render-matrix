@@ -286,7 +286,7 @@ static GOptionEntry _command_line_options[] = {
     { "log-scale", 'L', 0, G_OPTION_ARG_NONE, &config.log_scale, "Use log-scale, i.e. sgn(value) * log(1+|value|)", NULL },
     { "output", 'o', 0, G_OPTION_ARG_FILENAME, &config.output_filename, "Output filename", "Filename" },
     { "optimize", 'O', 0, G_OPTION_ARG_NONE, &config.optimize, "Remove hidden faces from output", NULL },
-    { "alpha", 'A', 0, G_OPTION_ARG_DOUBLE, &config.alpha_channel, "Alpha channel (between 0.0 and 1.0)", NULL },
+    { "alpha", 'T', 0, G_OPTION_ARG_DOUBLE, &config.alpha_channel, "Alpha channel (between 0.0 and 1.0)", NULL },
     { "standalone", 's', 0, G_OPTION_ARG_NONE, &config.export_standalone, "Produce standalone file", NULL },
     { "width", 'w', 0, G_OPTION_ARG_DOUBLE, &config.export_width, "Width of TikZ picture", NULL },
     { NULL }
