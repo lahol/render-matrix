@@ -235,8 +235,67 @@ void mesh_render_faces(cairo_t *cr, GList *faces)
 
 void _mesh_render_faces_tikz_define_color(guint32 key, double *value, FILE *file)
 {
-    fprintf(file, "\\definecolor{matcol%06x}{rgb}{%f,%f,%f}\n",
+    fprintf(file, "\t\\definecolor{matcol%06x}{rgb}{%f,%f,%f}\n",
             key, value[0], value[1], value[2]);
+}
+
+void mesh_render_colorbar_tikz(FILE *file, UtilRectangle *bounding_box, ExportConfig *config, double *range)
+{
+    /* FIXME: this table is used twice (util-colors.c) */
+    static double basic_table[7][3] = {
+        { 0.0, 0.0, 0.0 },
+        { 0.0, 0.0, 1.0 },
+        { 0.0, 1.0, 1.0 },
+        { 0.0, 1.0, 0.0 },
+        { 1.0, 1.0, 0.0 },
+        { 1.0, 0.0, 0.0 },
+        { 0.0, 0.0, 0.0 },
+    };
+
+    double image_width = (config && config->image_width > 0) ? config->image_width : 15;
+    double scale = image_width / bounding_box->width;
+
+    double colorbar_pos_x  = image_width + 1.0;
+    double colorbar_width  = 0.3;
+    double colorbar_height = bounding_box->height * scale * 0.8;
+    double colorbar_pos_y  = 0.5 * (bounding_box->height * scale - colorbar_height);
+
+    guint8 j;
+    for (j = 0; j < 7; ++j) {
+        fprintf(file, "\t\\definecolor{colorbar%d}{rgb}{%f,%f,%f}\n",
+                j, basic_table[j][0], basic_table[j][1], basic_table[j][2]);
+    }
+
+    /* let rectangles slightly overlap to overcome rounding errors */
+    for (j = 0; j < 6; ++j) {
+        fprintf(file, "\t\\shade[bottom color=colorbar%d,top color=colorbar%d,draw=none] (%f,%f) rectangle (%f,%f);\n",
+                j, j+1,
+                colorbar_pos_x, colorbar_pos_y + j * (colorbar_height / 6) - 0.01,
+                colorbar_pos_x + colorbar_width, colorbar_pos_y + (j+1) * (colorbar_height / 6) + 0.01);        
+    }
+
+    fprintf(file, "\t\\draw[color=black!40] (%f,%f) rectangle (%f,%f);\n",
+            colorbar_pos_x, colorbar_pos_y, colorbar_pos_x + colorbar_width, colorbar_pos_y + colorbar_height);
+
+    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.4,0);\n", colorbar_pos_x, colorbar_pos_y);
+    fprintf(file, "\t\\node[anchor=west] at (%f, %f) {\\scriptsize $%.1f$};",
+            colorbar_pos_x + colorbar_width, colorbar_pos_y, range[0]);
+    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.4,0);\n", colorbar_pos_x, colorbar_pos_y + colorbar_height);
+    fprintf(file, "\t\\node[anchor=west] at (%f, %f) {\\scriptsize $%.1f$};",
+            colorbar_pos_x + colorbar_width, colorbar_pos_y + colorbar_height, range[1]);
+#if 0
+    fprintf(file, "\t\\pgfdeclareverticalshading{colorbar}{6cm}{");
+    for (j = 0; j < 7; ++j) {
+        fprintf(file, "rgb(%dcm)=(%.1f,%.1f,%.1f)", j, basic_table[j][0], basic_table[j][1], basic_table[j][2]);
+        if (j < 6)
+            fprintf(file, "; ");
+        else
+            fprintf(file, "}\n");
+    }
+
+    fprintf(file, "\t\\shade[shading=colorbar] (%f,%f) rectangle (%f,%f);\n",
+            colorbar_pos_x, colorbar_pos_y, colorbar_pos_x + colorbar_width, colorbar_pos_y + colorbar_height);
+#endif
 }
 
 void mesh_render_faces_tikz(FILE *file, GList *faces, UtilRectangle *bounding_box, ExportConfig *config)
@@ -250,9 +309,6 @@ void mesh_render_faces_tikz(FILE *file, GList *faces, UtilRectangle *bounding_bo
     /* FIXME: make this configurable by user */
     double image_width = (config && config->image_width > 0) ? config->image_width : 15;
     double scale = image_width / bounding_box->width;
-
-    if (config && config->standalone)
-        fprintf(file, "\\documentclass{standalone}\n\\usepackage{tikz}\n\n\\begin{document}\n\\begin{tikzpicture}\n");
 
     fprintf(file, "\\definecolor{edgecolor}{rgb}{0.4,0.4,0.4}\n");
 
@@ -282,13 +338,10 @@ void mesh_render_faces_tikz(FILE *file, GList *faces, UtilRectangle *bounding_bo
         for (j = 0; j < 4; ++j) {
             fprintf(file, "(%f,%f) -- ",
                     (face->vertices[j][0] - bounding_box->x) * scale,
-                    (bounding_box->height - face->vertices[j][1]) * scale);
+                    (bounding_box->height - face->vertices[j][1] + bounding_box->y) * scale);
         }
         fprintf(file, "cycle;\n");
     }
-
-    if (config && config->standalone)
-        fprintf(file, "\\end{tikzpicture}\n\\end{document}\n");
 
 #undef COLORHASH
 }
@@ -456,7 +509,14 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
                 return FALSE;
             }
 
+            if (config && config->standalone)
+                fprintf(file, "\\documentclass{standalone}\n\\usepackage{tikz}\n\n\\begin{document}\n\\begin{tikzpicture}\n");
+
             mesh_render_faces_tikz(file, faces, &bounding_box, config);
+            mesh_render_colorbar_tikz(file, &bounding_box, config, mesh->unscaled_range);
+
+            if (config && config->standalone)
+                fprintf(file, "\\end{tikzpicture}\n\\end{document}\n");
 
             fclose(file);
             break;

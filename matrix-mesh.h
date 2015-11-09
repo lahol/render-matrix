@@ -32,6 +32,7 @@ typedef struct {
     guint32 n_chunks;
     MatrixMeshFace **chunk_faces;
     double zrange[2];
+    double unscaled_range[2];
     double alpha_channel;
 } MatrixMesh;
 

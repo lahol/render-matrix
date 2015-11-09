@@ -7,7 +7,7 @@
  */
 void util_color_gradient_rgb(double hue, double *rgb)
 {
-#define _N_COLORS (7)
+#define _N_COLORS (6)
 
     static double basic_table[_N_COLORS+1][3] = {
         /* { 1.0, 1.0, 1.0 }, */
@@ -30,8 +30,8 @@ void util_color_gradient_rgb(double hue, double *rgb)
         return;
     }
 
-    int index = (int)((_N_COLORS - 1) * hue);       /* floor */
-    double lambda = ((_N_COLORS - 1) * hue - index); /* frac */
+    int index = (int)((_N_COLORS) * hue);       /* floor */
+    double lambda = ((_N_COLORS) * hue - index); /* frac */
 
     rgb[0] = (1.0 - lambda) * basic_table[index][0] + lambda * basic_table[index + 1][0];
     rgb[1] = (1.0 - lambda) * basic_table[index][1] + lambda * basic_table[index + 1][1];

@@ -128,6 +128,9 @@ void matrix_mesh_update(MatrixMesh *mesh)
     }
     scale = range[0] != range[1] ? 1.0f/(range[1]-range[0]) : 1.0f;
 
+    mesh->unscaled_range[0] = range[0];
+    mesh->unscaled_range[1] = range[1];
+
     range[0] *= scale;
     range[1] *= scale;
 
