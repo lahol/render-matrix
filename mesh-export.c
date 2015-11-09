@@ -366,7 +366,7 @@ void mesh_render_faces_tikz(FILE *file, GList *faces, UtilRectangle *bounding_bo
     for (tmp = faces; tmp; tmp = g_list_next(tmp)) {
         face = (struct SVGFace *)tmp->data;
 
-        fprintf(file, "\t\\draw[color=edgecolor,fill=matcol%06x] ", COLORHASH(face->color));
+        fprintf(file, "\t\\draw[color=edgecolor,ultra thin,fill=matcol%06x] ", COLORHASH(face->color));
         for (j = 0; j < 4; ++j) {
             fprintf(file, "(%f,%f) -- ",
                     (face->vertices[j][0] - bounding_box->x) * scale,
