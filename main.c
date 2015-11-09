@@ -36,6 +36,7 @@ struct {
     double tilt;
     double alpha_channel;
     double export_width;
+    double colorbar_pos_x; /* >= 0 -> bounding_box->width + pos, <0: left of plot */
 
     gchar *output_filename;
     gboolean permutate_entries;
@@ -56,6 +57,7 @@ void main_config_default(void)
     config.tilt = 0.0;
     config.alpha_channel = 1.0;
     config.export_width = 15.0;
+    config.colorbar_pos_x = 1.0;
 
     config.permutate_entries = FALSE;
     config.alternate_signs = FALSE;
@@ -112,6 +114,7 @@ void main_save_matrix_to_file(const gchar *filename)
     expconfig.remove_hidden = config.optimize;
     expconfig.image_width = config.export_width;
     expconfig.standalone = config.export_standalone;
+    expconfig.colorbar_pos_x = config.colorbar_pos_x;
 
     switch (type) {
         case ExportFileTypePNG:
@@ -289,6 +292,7 @@ static GOptionEntry _command_line_options[] = {
     { "alpha", 'T', 0, G_OPTION_ARG_DOUBLE, &config.alpha_channel, "Alpha channel (between 0.0 and 1.0)", NULL },
     { "standalone", 's', 0, G_OPTION_ARG_NONE, &config.export_standalone, "Produce standalone file", NULL },
     { "width", 'w', 0, G_OPTION_ARG_DOUBLE, &config.export_width, "Width of TikZ picture", NULL },
+    { "colorbar-x", 0, 0, G_OPTION_ARG_DOUBLE, &config.colorbar_pos_x, "Relative position of colorbar", "offset" },
     { NULL }
 };
 

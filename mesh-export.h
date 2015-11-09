@@ -16,6 +16,7 @@ typedef struct {
     gboolean remove_hidden;
     gboolean standalone;
     double image_width;
+    double colorbar_pos_x;
 } ExportConfig;
 
 ExportFileType mesh_export_get_type_from_filename(const gchar *filename);

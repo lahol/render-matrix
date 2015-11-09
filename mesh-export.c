@@ -255,7 +255,7 @@ void mesh_render_colorbar_tikz(FILE *file, UtilRectangle *bounding_box, ExportCo
     double image_width = (config && config->image_width > 0) ? config->image_width : 15;
     double scale = image_width / bounding_box->width;
 
-    double colorbar_pos_x  = image_width + 1.0;
+    double colorbar_pos_x  = (config) ? (config->colorbar_pos_x >= 0 ? image_width + config->colorbar_pos_x : config->colorbar_pos_x) : image_width + 1.0;
     double colorbar_width  = 0.3;
     double colorbar_height = bounding_box->height * scale * 0.8;
     double colorbar_pos_y  = 0.5 * (bounding_box->height * scale - colorbar_height);
@@ -277,12 +277,12 @@ void mesh_render_colorbar_tikz(FILE *file, UtilRectangle *bounding_box, ExportCo
     fprintf(file, "\t\\draw[color=black!40] (%f,%f) rectangle (%f,%f);\n",
             colorbar_pos_x, colorbar_pos_y, colorbar_pos_x + colorbar_width, colorbar_pos_y + colorbar_height);
 
-    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.4,0);\n", colorbar_pos_x, colorbar_pos_y);
-    fprintf(file, "\t\\node[anchor=west] at (%f, %f) {\\scriptsize $%.1f$};",
-            colorbar_pos_x + colorbar_width, colorbar_pos_y, range[0]);
-    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.4,0);\n", colorbar_pos_x, colorbar_pos_y + colorbar_height);
-    fprintf(file, "\t\\node[anchor=west] at (%f, %f) {\\scriptsize $%.1f$};",
-            colorbar_pos_x + colorbar_width, colorbar_pos_y + colorbar_height, range[1]);
+    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.5,0);\n", colorbar_pos_x -0.1, colorbar_pos_y);
+    fprintf(file, "\t\\node[anchor=east] at (%f, %f) {\\scriptsize $%.1f$};\n",
+            colorbar_pos_x -0.1, colorbar_pos_y, range[0]);
+    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.5,0);\n", colorbar_pos_x -0.1, colorbar_pos_y + colorbar_height);
+    fprintf(file, "\t\\node[anchor=east] at (%f, %f) {\\scriptsize $%.1f$};\n",
+            colorbar_pos_x -0.1, colorbar_pos_y + colorbar_height, range[1]);
 #if 0
     fprintf(file, "\t\\pgfdeclareverticalshading{colorbar}{6cm}{");
     for (j = 0; j < 7; ++j) {
@@ -296,6 +296,38 @@ void mesh_render_colorbar_tikz(FILE *file, UtilRectangle *bounding_box, ExportCo
     fprintf(file, "\t\\shade[shading=colorbar] (%f,%f) rectangle (%f,%f);\n",
             colorbar_pos_x, colorbar_pos_y, colorbar_pos_x + colorbar_width, colorbar_pos_y + colorbar_height);
 #endif
+}
+
+void mesh_set_coordinates_tikz(FILE *file, double *projection, UtilRectangle *bounding_box, ExportConfig *config, double *range)
+{
+    double screen[3];
+
+    double xyplane[4][3] = {
+        { -0.5, -0.5, 0.0 },
+        { 0.5, -0.5, 0.0 },
+        { 0.5, 0.5, 0.0 },
+        { -0.5, 0.5, 0.0 }
+    };
+
+    guint8 j;
+
+    double image_width = (config && config->image_width > 0) ? config->image_width : 15;
+    double scale = image_width / bounding_box->width;
+
+#define SETCOORD(z,l)    do {\
+    for (j = 0; j < 4; ++j) {\
+        xyplane[j][2] = (z);\
+        mesh_export_world_to_screen(projection, xyplane[j], screen);\
+        fprintf(file, "\t\\coordinate (bb%c%c%c) at (%f,%f);\n",\
+                (j == 0 || j == 3) ? '0' : '1', (j == 2 || j == 3) ? '1' : '0', (l),\
+                (screen[0] - bounding_box->x) * scale, (bounding_box->height - screen[1] + bounding_box->y) * scale);\
+    } } while(0)
+
+    SETCOORD(range[0], 'b');
+    SETCOORD(0.0, '0');
+    SETCOORD(range[1], 't');
+
+#undef SETCOORD
 }
 
 void mesh_render_faces_tikz(FILE *file, GList *faces, UtilRectangle *bounding_box, ExportConfig *config)
@@ -512,6 +544,7 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
             if (config && config->standalone)
                 fprintf(file, "\\documentclass{standalone}\n\\usepackage{tikz}\n\n\\begin{document}\n\\begin{tikzpicture}\n");
 
+            mesh_set_coordinates_tikz(file, projection, &bounding_box, config, mesh->zrange);
             mesh_render_faces_tikz(file, faces, &bounding_box, config);
             mesh_render_colorbar_tikz(file, &bounding_box, config, mesh->unscaled_range);
 
