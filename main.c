@@ -23,8 +23,12 @@ struct {
     GtkWidget *check_shift_signs;
     GtkWidget *check_log_scale;
 
-    Matrix *orig_matrix;
     Matrix *display_matrix;
+    struct {
+        GList *head;
+        GList *tail;
+        GList *current;
+    } matrix_list;
 
     GraphicsHandle *graphics_handle;
 } appdata;
@@ -80,7 +84,9 @@ static void camera_value_changed(GtkSpinButton *button, gpointer userdata)
 
 void main_update_display_matrix(void)
 {
-    matrix_copy(appdata.display_matrix, appdata.orig_matrix);
+    if (!appdata.matrix_list.current)
+        return;
+    matrix_copy(appdata.display_matrix, appdata.matrix_list.current->data);
     if (config.log_scale)
         matrix_log_scale(appdata.display_matrix);
     if (config.permutate_entries)
@@ -91,8 +97,6 @@ void main_update_display_matrix(void)
 
 static void matrix_properties_toggled(GtkToggleButton *button, gpointer userdata)
 {
-    matrix_copy(appdata.display_matrix, appdata.orig_matrix);
-
     config.log_scale =  gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_log_scale));
     config.permutate_entries = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_permutation));
     config.alternate_signs = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(appdata.check_alternate_signs));
@@ -102,6 +106,17 @@ static void matrix_properties_toggled(GtkToggleButton *button, gpointer userdata
 
     graphics_update_matrix_data(appdata.graphics_handle);
 
+    gtk_widget_queue_draw(appdata.glwidget);
+}
+
+void main_matrix_next(void)
+{
+    appdata.matrix_list.current = g_list_next(appdata.matrix_list.current);
+    if (appdata.matrix_list.current == NULL)
+        appdata.matrix_list.current = appdata.matrix_list.head;
+
+    main_update_display_matrix();
+    graphics_update_matrix_data(appdata.graphics_handle);
     gtk_widget_queue_draw(appdata.glwidget);
 }
 
@@ -115,6 +130,7 @@ void main_save_matrix_to_file(const gchar *filename)
     expconfig.image_width = config.export_width;
     expconfig.standalone = config.export_standalone;
     expconfig.colorbar_pos_x = config.colorbar_pos_x;
+    expconfig.alpha_channel = config.alpha_channel;
 
     switch (type) {
         case ExportFileTypePNG:
@@ -124,6 +140,7 @@ void main_save_matrix_to_file(const gchar *filename)
         case ExportFileTypeSVG:
         case ExportFileTypeTikZ:
             {
+#if 0
                 MatrixMesh *mesh = matrix_mesh_new();
                 matrix_mesh_set_alpha_channel(mesh, config.alpha_channel);
                 matrix_mesh_set_matrix(mesh, appdata.display_matrix);
@@ -133,6 +150,11 @@ void main_save_matrix_to_file(const gchar *filename)
                 mesh_export_to_file(filename, type, mesh, projection, &expconfig);
 
                 matrix_mesh_free(mesh);
+#else
+                double projection[16];
+                util_get_rotation_matrix_from_angles(projection, config.azimuth, config.elevation, config.tilt);
+                mesh_export_matrices_to_files(filename, type, appdata.matrix_list.head, projection, &expconfig);
+#endif
             }
             break;
         default:
@@ -259,6 +281,11 @@ void main_init_ui(void)
             G_CALLBACK(save_to_file_button_clicked), NULL);
     gtk_box_pack_end(GTK_BOX(hbox), button, FALSE, FALSE, 3);
 
+    button = gtk_button_new_with_label("Next");
+    g_signal_connect(G_OBJECT(button), "clicked",
+            G_CALLBACK(main_matrix_next), NULL);
+    gtk_box_pack_end(GTK_BOX(hbox), button, FALSE, FALSE, 3);
+
 
     gtk_box_pack_start(GTK_BOX(vbox), appdata.glwidget, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), hbox, FALSE, FALSE, 2);
@@ -271,7 +298,7 @@ void main_init_ui(void)
 void main_cleanup(void)
 {
     matrix_free(appdata.display_matrix);
-    matrix_free(appdata.orig_matrix);
+    g_list_free_full(appdata.matrix_list.head, (GDestroyNotify)matrix_free);
 
     graphics_cleanup(appdata.graphics_handle);
 }
@@ -321,8 +348,10 @@ int main(int argc, char **argv)
     if (!main_parse_command_line(&argc, &argv))
         return 1;
 
-    appdata.orig_matrix = matrix_read_from_file(STDIN_FILENO);
-    appdata.display_matrix = matrix_dup(appdata.orig_matrix);
+    appdata.matrix_list.head = matrix_read_from_file(STDIN_FILENO);
+    appdata.matrix_list.current = appdata.matrix_list.head;
+    appdata.matrix_list.tail = g_list_last(appdata.matrix_list.head);
+    appdata.display_matrix = matrix_new();
 
     main_update_display_matrix();
 

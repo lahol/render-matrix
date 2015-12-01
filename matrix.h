@@ -29,7 +29,7 @@ gboolean matrix_iter_is_valid(Matrix *matrix, MatrixIter *iter);
 void matrix_append_value(Matrix *matrix, MatrixIter *iter, double value);
 gboolean matrix_get_iter(Matrix *matrix, MatrixIter *iter, guint32 row, guint32 column);
 
-Matrix *matrix_read_from_file(int fd);
+GList *matrix_read_from_file(int fd);
 
 void matrix_copy(Matrix *dst, Matrix *src);
 Matrix *matrix_dup(Matrix *matrix);

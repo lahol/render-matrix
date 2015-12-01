@@ -5,6 +5,8 @@
 #include <cairo.h>
 #include <cairo-svg.h>
 #include <cairo-pdf.h>
+#include <string.h>
+#include <stdlib.h>
 
 enum SVGFaceFlags {
     SVGFF_Required = (1 << 0)
@@ -489,27 +491,20 @@ GList *mesh_remove_hidden_faces(GList *faces)
     return visible_faces;
 }
 
-gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection,
-                             ExportConfig *config)
+gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, MatrixMesh *mesh, GList *faces,
+                                  double *projection, ExportConfig *config, UtilRectangle *bounding_box)
 {
-    g_return_val_if_fail(mesh != NULL, FALSE);
+    FILE *file = NULL;
 
     cairo_surface_t *surface = NULL;
     cairo_t *cr = NULL;
-    FILE *file = NULL;
-
-    UtilRectangle bounding_box;
-    GList *faces = mesh_export_generate_faces(mesh, projection, &bounding_box);
-
-    /*mesh_export_get_bounding_box(mesh, projection, &bounding_box);*/
-    g_print("bounding box: @(%f, %f) %f x %f\n", bounding_box.x, bounding_box.y, bounding_box.width, bounding_box.height);
 
     switch (type) {
         case ExportFileTypeSVG:
-            surface = cairo_svg_surface_create(filename, bounding_box.width, bounding_box.height);
+            surface = cairo_svg_surface_create(filename, bounding_box->width, bounding_box->height);
             break;
         case ExportFileTypePDF:
-            surface = cairo_pdf_surface_create(filename, bounding_box.width, bounding_box.height);
+            surface = cairo_pdf_surface_create(filename, bounding_box->width, bounding_box->height);
             break;
         case ExportFileTypePNG:
             /* TODO: image surface, get data, write to png */
@@ -527,7 +522,7 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
         case ExportFileTypePDF:
         case ExportFileTypeSVG:
             cr = cairo_create(surface);
-            cairo_translate(cr, -bounding_box.x, -bounding_box.y);
+            cairo_translate(cr, -bounding_box->x, -bounding_box->y);
 
             mesh_render_faces(cr, faces);
 
@@ -537,16 +532,20 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
         case ExportFileTypeTikZ:
             if ((file = fopen(filename, "w")) == NULL) {
                 fprintf(stderr, "Could not open `%s'.\n", filename);
-                g_list_free_full(faces, g_free);
                 return FALSE;
             }
 
             if (config && config->standalone)
                 fprintf(file, "\\documentclass{standalone}\n\\usepackage{tikz}\n\n\\begin{document}\n\\begin{tikzpicture}\n");
 
-            mesh_set_coordinates_tikz(file, projection, &bounding_box, config, mesh->zrange);
-            mesh_render_faces_tikz(file, faces, &bounding_box, config);
-            mesh_render_colorbar_tikz(file, &bounding_box, config, mesh->unscaled_range);
+            double image_width = (config && config->image_width > 0) ? config->image_width : 15;
+            double scale = image_width / bounding_box->width;
+
+            mesh_set_coordinates_tikz(file, projection, bounding_box, config, mesh->zrange);
+            mesh_render_faces_tikz(file, faces, bounding_box, config);
+            mesh_render_colorbar_tikz(file, bounding_box, config, mesh->unscaled_range);
+            fprintf(file, "\\path[use as bounding box] (0,0) rectangle (%f,%f);\n",
+                    bounding_box->width * scale, bounding_box->height * scale);
 
             if (config && config->standalone)
                 fprintf(file, "\\end{tikzpicture}\n\\end{document}\n");
@@ -559,7 +558,111 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
             break;
     }
 
+    return TRUE;
+}
+
+gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection,
+                             ExportConfig *config)
+{
+    g_return_val_if_fail(mesh != NULL, FALSE);
+    g_return_val_if_fail(filename != NULL, FALSE);
+    g_return_val_if_fail(projection != NULL, FALSE);
+
+    UtilRectangle bounding_box;
+    GList *faces = mesh_export_generate_faces(mesh, projection, &bounding_box);
+
+    /*mesh_export_get_bounding_box(mesh, projection, &bounding_box);*/
+    g_print("bounding box: @(%f, %f) %f x %f\n", bounding_box.x, bounding_box.y, bounding_box.width, bounding_box.height);
+
+
+    if (!_mesh_export_write_faces(filename, type, mesh, faces, projection, config, &bounding_box))
+        g_printerr("Failed to write faces.\n");
     g_list_free_full(faces, g_free);
 
+    return TRUE;
+}
+
+gchar *_mesh_export_generate_filename(const gchar *base, guint64 offset)
+{
+    if (base == NULL || base[0] == '\0')
+        return NULL;
+
+    /* only use the basename and not the directory part */
+    gchar *dirsep = strrchr(base, '/');
+    if (dirsep)
+        ++dirsep;
+    else
+        dirsep = (gchar *)base;
+
+    /* get suffix; we want only numbers in the real filename, not the extension */
+    gchar *suff = strrchr(base, '.');
+    if (!suff)
+        suff = (gchar *)base + strlen(base);
+
+    /* get last number */
+    for ( ; suff >= dirsep; --suff)
+        if (g_ascii_isdigit(*suff))
+            break;
+    if (suff < dirsep)
+        return g_strdup(base);
+
+    gchar *num = suff++;
+    for ( ; num >= dirsep; --num)
+        if (!g_ascii_isdigit(*num))
+            break;
+    ++num;
+
+    gchar *format = g_strdup_printf("%%0%u" G_GUINT64_FORMAT, (guint)(suff - num));
+    unsigned long long int n = strtoull(num, NULL, 10);
+    GString *str = g_string_new_len(base, num - base);
+    g_string_append_printf(str, format, n + offset);
+    g_string_append(str, suff);
+    g_free(format);
+
+    return g_string_free(str, FALSE);
+}
+
+gboolean mesh_export_matrices_to_files(const gchar *filename_base, ExportFileType type, GList *matrices, double *projection,
+                                       ExportConfig *config)
+{
+    g_return_val_if_fail(matrices != NULL, FALSE);
+    g_return_val_if_fail(filename_base != NULL, FALSE);
+    g_return_val_if_fail(projection != NULL, FALSE);
+
+    guint offset;
+    gchar *filename;
+    GList *faces_list = NULL;
+    GList *mesh_list = NULL;
+    MatrixMesh *mesh;
+    UtilRectangle bounding_box = { 0, 0, 0, 0 }, bb;
+    GList *tmpm, *tmpf;
+
+    /* first pass: generate all faces and determine bounding box */
+    for (tmpm = matrices; tmpm != NULL; tmpm = g_list_next(tmpm)) {
+        mesh = matrix_mesh_new();
+        matrix_mesh_set_alpha_channel(mesh, config->alpha_channel);
+        matrix_mesh_set_matrix(mesh, (Matrix *)tmpm->data);
+        mesh_list = g_list_prepend(mesh_list, mesh);
+
+        faces_list = g_list_prepend(faces_list,
+                mesh_export_generate_faces(mesh, projection, &bb));
+
+        util_rectangle_bounds(&bounding_box, &bounding_box, &bb);
+    }
+    faces_list = g_list_reverse(faces_list);
+    mesh_list = g_list_reverse(mesh_list);
+
+    /* second pass: write files */
+    for (tmpm = mesh_list, tmpf = faces_list, offset = 0;
+            tmpm && tmpf;
+            tmpm = g_list_next(tmpm), tmpf = g_list_next(tmpf), ++offset) {
+        filename = _mesh_export_generate_filename(filename_base, offset);
+        if (!_mesh_export_write_faces(filename, type, (MatrixMesh *)tmpm->data,
+                    (GList *)tmpf->data, projection, config, &bounding_box))
+            g_printerr("Failed to write faces for mesh %u.\n", offset + 1);
+        g_list_free_full((GList *)tmpf->data, g_free);
+        matrix_mesh_free((MatrixMesh *)tmpm->data);
+    }
+    
     return TRUE;
 }

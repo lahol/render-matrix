@@ -17,9 +17,12 @@ typedef struct {
     gboolean standalone;
     double image_width;
     double colorbar_pos_x;
+    double alpha_channel;
 } ExportConfig;
 
 ExportFileType mesh_export_get_type_from_filename(const gchar *filename);
 
 gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixMesh *mesh, double *projection,
                              ExportConfig *config);
+gboolean mesh_export_matrices_to_files(const gchar *filename_base, ExportFileType type, GList *matrices, double *projection,
+                                       ExportConfig *config);

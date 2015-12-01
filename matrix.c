@@ -131,7 +131,7 @@ gboolean _matrix_read_next_token(FILE *infile, MatrixTokenType *type, double *va
 
 }*/
 
-Matrix *matrix_read_from_file(int fd)
+GList *matrix_read_from_file(int fd)
 {
     GScanner *scanner = g_scanner_new(NULL);
     scanner->config->cset_skip_characters = " \t";
@@ -140,8 +140,13 @@ Matrix *matrix_read_from_file(int fd)
     GTokenType next_token_type;
     gboolean negate = FALSE;
 
-    Matrix *m = matrix_new();
+    Matrix *m;
     guint32 columns = 0;
+
+    GList *list = NULL;
+
+    m = matrix_new(); 
+    list = g_list_prepend(list, m);
 
     do {
         next_token_type = g_scanner_get_next_token(scanner);
@@ -158,8 +163,17 @@ Matrix *matrix_read_from_file(int fd)
             negate = TRUE;
         }
         else if (next_token_type == '\n') {
-            if (m->n_columns != 0 && m->n_columns != columns)
-                g_printerr("column mismatch at line %u\n", scanner->line);
+            if (m->n_columns != 0 && m->n_columns != columns) {
+                if (columns == 0) {
+                    g_print("start of new matrix at line %u\n", scanner->line);
+                    m = matrix_new();
+                    list = g_list_prepend(list, m);
+                    continue;
+                }
+                else {
+                    g_printerr("column mismatch at line %u\n", scanner->line);
+                }
+            }
             else if (m->n_columns == 0)
                 m->n_columns = columns;
             ++m->n_rows;
@@ -173,7 +187,7 @@ Matrix *matrix_read_from_file(int fd)
 
     g_scanner_destroy(scanner);
 
-    return m;
+    return g_list_reverse(list);
 }
 
 void matrix_copy(Matrix *dst, Matrix *src)
