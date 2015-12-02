@@ -1,12 +1,14 @@
 #include "mesh-export.h"
 #include "util-projection.h"
 #include "util-rectangle.h"
+#include "util-colors.h"
 
 #include <cairo.h>
 #include <cairo-svg.h>
 #include <cairo-pdf.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 enum SVGFaceFlags {
     SVGFF_Required = (1 << 0)
@@ -206,7 +208,7 @@ void mesh_export_get_bounding_box(MatrixMesh *mesh, double *projection, UtilRect
     }
 }
 
-void mesh_render_faces(cairo_t *cr, GList *faces)
+void mesh_render_faces(cairo_t *cr, GList *faces, double scale)
 {
     GList *tmp;
     struct SVGFace *face;
@@ -221,10 +223,10 @@ void mesh_render_faces(cairo_t *cr, GList *faces)
                 face->vertices[3][0], face->vertices[3][1], face->vertices[3][2],
                 face->zvalue, face->color[0], face->color[1], face->color[2]);
 #endif*/
-        cairo_move_to(cr, face->vertices[0][0], face->vertices[0][1]);
-        cairo_line_to(cr, face->vertices[1][0], face->vertices[1][1]);
-        cairo_line_to(cr, face->vertices[2][0], face->vertices[2][1]);
-        cairo_line_to(cr, face->vertices[3][0], face->vertices[3][1]);
+        cairo_move_to(cr, face->vertices[0][0] * scale, face->vertices[0][1] * scale);
+        cairo_line_to(cr, face->vertices[1][0] * scale, face->vertices[1][1] * scale);
+        cairo_line_to(cr, face->vertices[2][0] * scale, face->vertices[2][1] * scale);
+        cairo_line_to(cr, face->vertices[3][0] * scale, face->vertices[3][1] * scale);
         cairo_close_path(cr);
 
         cairo_set_source_rgba(cr, face->color[0], face->color[1], face->color[2], face->color[3]);
@@ -241,63 +243,44 @@ void _mesh_render_faces_tikz_define_color(guint32 key, double *value, FILE *file
             key, value[0], value[1], value[2]);
 }
 
-void mesh_render_colorbar_tikz(FILE *file, UtilRectangle *bounding_box, ExportConfig *config, double *range)
+void mesh_render_colorbar_tikz(FILE *file, UtilRectangle *colorbar, ExportConfig *config, double *range)
 {
-    /* FIXME: this table is used twice (util-colors.c) */
-    static double basic_table[7][3] = {
-        { 0.0, 0.0, 0.0 },
-        { 0.0, 0.0, 1.0 },
-        { 0.0, 1.0, 1.0 },
-        { 0.0, 1.0, 0.0 },
-        { 1.0, 1.0, 0.0 },
-        { 1.0, 0.0, 0.0 },
-        { 0.0, 0.0, 0.0 },
-    };
-
-    double image_width = (config && config->image_width > 0) ? config->image_width : 15;
-    double scale = image_width / bounding_box->width;
-
-    double colorbar_pos_x  = (config) ? (config->colorbar_pos_x >= 0 ? image_width + config->colorbar_pos_x : config->colorbar_pos_x) : image_width + 1.0;
-    double colorbar_width  = 0.3;
-    double colorbar_height = bounding_box->height * scale * 0.8;
-    double colorbar_pos_y  = 0.5 * (bounding_box->height * scale - colorbar_height);
-
     guint8 j;
     for (j = 0; j < 7; ++j) {
         fprintf(file, "\t\\definecolor{colorbar%d}{rgb}{%f,%f,%f}\n",
-                j, basic_table[j][0], basic_table[j][1], basic_table[j][2]);
+                j, util_colors_basic_table[j][0], util_colors_basic_table[j][1], util_colors_basic_table[j][2]);
     }
 
     /* let rectangles slightly overlap to overcome rounding errors */
     for (j = 0; j < 6; ++j) {
         fprintf(file, "\t\\shade[bottom color=colorbar%d,top color=colorbar%d,draw=none] (%f,%f) rectangle (%f,%f);\n",
                 j, j+1,
-                colorbar_pos_x, colorbar_pos_y + j * (colorbar_height / 6) - 0.01,
-                colorbar_pos_x + colorbar_width, colorbar_pos_y + (j+1) * (colorbar_height / 6) + 0.01);        
+                colorbar->x, colorbar->y + j * (colorbar->height / 6) - 0.01,
+                colorbar->x + colorbar->width, colorbar->y + (j+1) * (colorbar->height / 6) + 0.01);        
     }
 
     fprintf(file, "\t\\draw[color=black!40] (%f,%f) rectangle (%f,%f);\n",
-            colorbar_pos_x, colorbar_pos_y, colorbar_pos_x + colorbar_width, colorbar_pos_y + colorbar_height);
+            colorbar->x, colorbar->y, colorbar->x + colorbar->width, colorbar->y + colorbar->height);
 
-    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.5,0);\n", colorbar_pos_x -0.1, colorbar_pos_y);
-    fprintf(file, "\t\\node[anchor=east] at (%f, %f) {\\scriptsize $%.1f$};\n",
-            colorbar_pos_x -0.1, colorbar_pos_y, range[0]);
-    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.5,0);\n", colorbar_pos_x -0.1, colorbar_pos_y + colorbar_height);
-    fprintf(file, "\t\\node[anchor=east] at (%f, %f) {\\scriptsize $%.1f$};\n",
-            colorbar_pos_x -0.1, colorbar_pos_y + colorbar_height, range[1]);
-#if 0
-    fprintf(file, "\t\\pgfdeclareverticalshading{colorbar}{6cm}{");
-    for (j = 0; j < 7; ++j) {
-        fprintf(file, "rgb(%dcm)=(%.1f,%.1f,%.1f)", j, basic_table[j][0], basic_table[j][1], basic_table[j][2]);
-        if (j < 6)
-            fprintf(file, "; ");
-        else
-            fprintf(file, "}\n");
+    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.5,0);\n", colorbar->x -0.1, colorbar->y);
+    fprintf(file, "\t\\draw[color=black!40] (%f,%f) -- ++(0.5,0);\n", colorbar->x -0.1, colorbar->y + colorbar->height);
+    if (config && config->colorbar_pos_x < 0) {
+        fprintf(file, "\t\\node[anchor=west] at (%f, %f) {\\scriptsize $%.1f$};\n",
+                colorbar->x + 0.4, colorbar->y, range[0]);
+        fprintf(file, "\t\\node[anchor=west] at (%f, %f) {\\scriptsize $%.1f$};\n",
+                colorbar->x + 0.4, colorbar->y + colorbar->height, range[1]);
     }
+    else {
+        fprintf(file, "\t\\node[anchor=east] at (%f, %f) {\\scriptsize $%.1f$};\n",
+                colorbar->x - 0.1, colorbar->y, range[0]);
+        fprintf(file, "\t\\node[anchor=east] at (%f, %f) {\\scriptsize $%.1f$};\n",
+                colorbar->x - 0.1, colorbar->y + colorbar->height, range[1]);
+    }
+}
 
-    fprintf(file, "\t\\shade[shading=colorbar] (%f,%f) rectangle (%f,%f);\n",
-            colorbar_pos_x, colorbar_pos_y, colorbar_pos_x + colorbar_width, colorbar_pos_y + colorbar_height);
-#endif
+void mesh_render_colorbar_cairo(cairo_t *cr, UtilRectangle *bounding_box, ExportConfig *config, double *range)
+{
+    /*double image_width = (config && config->image_width > 0) ? config->image_width : 15;*/
 }
 
 void mesh_set_coordinates_tikz(FILE *file, double *projection, UtilRectangle *bounding_box, ExportConfig *config, double *range)
@@ -332,7 +315,7 @@ void mesh_set_coordinates_tikz(FILE *file, double *projection, UtilRectangle *bo
 #undef SETCOORD
 }
 
-void mesh_render_faces_tikz(FILE *file, GList *faces, UtilRectangle *bounding_box, ExportConfig *config)
+void mesh_render_faces_tikz(FILE *file, GList *faces, UtilRectangle *bounding_box, double scale, ExportConfig *config)
 {
     GList *tmp;
     struct SVGFace *face;
@@ -341,8 +324,8 @@ void mesh_render_faces_tikz(FILE *file, GList *faces, UtilRectangle *bounding_bo
 #define COLORHASH(col) (((guint8)(255 * (col)[0])) << 16 | ((guint8)(255 * (col)[1])) << 8 | ((guint8)(255 * (col)[2])))
 
     /* FIXME: make this configurable by user */
-    double image_width = (config && config->image_width > 0) ? config->image_width : 15;
-    double scale = image_width / bounding_box->width;
+/*    double image_width = (config && config->image_width > 0) ? config->image_width : 15;
+    double scale = image_width / bounding_box->width;*/
 
     fprintf(file, "\\definecolor{edgecolor}{rgb}{0.4,0.4,0.4}\n");
 
@@ -499,32 +482,54 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
     cairo_surface_t *surface = NULL;
     cairo_t *cr = NULL;
 
+    double image_width, scale, colorbar_correction;
+    image_width = (config && config->image_width > 0) ? config->image_width : 15;
+
+    UtilRectangle colorbar;
+    colorbar.width = 0.3;
+
+    colorbar_correction = ((config) ? fabs(config->colorbar_pos_x) : 1.0) + colorbar.width + 0.1;
+
     switch (type) {
         case ExportFileTypeSVG:
-            surface = cairo_svg_surface_create(filename, bounding_box->width, bounding_box->height);
+            /* size in points = 1/72 in = 2.54/72 cm */
+            image_width *= 72/2.54;
+            scale = image_width / (bounding_box->width + colorbar_correction);
+            surface = cairo_svg_surface_create(filename, image_width, bounding_box->height * scale);
             break;
         case ExportFileTypePDF:
-            surface = cairo_pdf_surface_create(filename, bounding_box->width, bounding_box->height);
+            /* size in points = 1/72 in = 2.54/72 cm */
+            image_width *= 72/2.54;
+            scale = image_width / (bounding_box->width + colorbar_correction);
+            surface = cairo_pdf_surface_create(filename, image_width, bounding_box->height * scale);
             break;
         case ExportFileTypePNG:
             /* TODO: image surface, get data, write to png */
             return FALSE;
         case ExportFileTypeTikZ:
+            /* image width in cm */
+            /* colorbar correction is in image dimension */
+            scale = (image_width - colorbar_correction) / bounding_box->width;
             break;
         default:
             return FALSE;
     }
 
+    colorbar.x = (config) ? (config->colorbar_pos_x >= 0 ? (bounding_box->width) * scale + config->colorbar_pos_x : config->colorbar_pos_x - colorbar.width) : (bounding_box->width) * scale + 1.0;
+    colorbar.height = bounding_box->height * scale * 0.8;
+    colorbar.y = 0.5 * (bounding_box->height * scale - colorbar.height);
+
     if (config && config->remove_hidden)
         faces = mesh_remove_hidden_faces(faces);
-    
+   
     switch (type) {
         case ExportFileTypePDF:
         case ExportFileTypeSVG:
             cr = cairo_create(surface);
-            cairo_translate(cr, -bounding_box->x, -bounding_box->y);
+            cairo_translate(cr, -bounding_box->x * scale, -bounding_box->y * scale);
 
-            mesh_render_faces(cr, faces);
+            mesh_render_faces(cr, faces, scale);
+            mesh_render_colorbar_cairo(cr, bounding_box, config, mesh->unscaled_range);
 
             cairo_destroy(cr);
             cairo_surface_destroy(surface);
@@ -538,14 +543,14 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
             if (config && config->standalone)
                 fprintf(file, "\\documentclass{standalone}\n\\usepackage{tikz}\n\n\\begin{document}\n\\begin{tikzpicture}\n");
 
-            double image_width = (config && config->image_width > 0) ? config->image_width : 15;
-            double scale = image_width / bounding_box->width;
-
             mesh_set_coordinates_tikz(file, projection, bounding_box, config, mesh->zrange);
-            mesh_render_faces_tikz(file, faces, bounding_box, config);
-            mesh_render_colorbar_tikz(file, bounding_box, config, mesh->unscaled_range);
-            fprintf(file, "\\path[use as bounding box] (0,0) rectangle (%f,%f);\n",
-                    bounding_box->width * scale, bounding_box->height * scale);
+            mesh_render_faces_tikz(file, faces, bounding_box, scale, config);
+            mesh_render_colorbar_tikz(file, &colorbar, config, mesh->unscaled_range);
+            /* FIXME: for colorbar_pos_x < 0 correct position of bounding box (colorbar_pos_x - 0.1)
+             *        and take care of labels (maybe on right side?) */
+            fprintf(file, "\\path[use as bounding box] (%f,0) rectangle ++(%f,%f);\n",
+                    (config && config->colorbar_pos_x < 0) ? -colorbar_correction: 0,
+                    bounding_box->width * scale + colorbar_correction, bounding_box->height * scale);
 
             if (config && config->standalone)
                 fprintf(file, "\\end{tikzpicture}\n\\end{document}\n");
@@ -573,7 +578,6 @@ gboolean mesh_export_to_file(const gchar *filename, ExportFileType type, MatrixM
 
     /*mesh_export_get_bounding_box(mesh, projection, &bounding_box);*/
     g_print("bounding box: @(%f, %f) %f x %f\n", bounding_box.x, bounding_box.y, bounding_box.width, bounding_box.height);
-
 
     if (!_mesh_export_write_faces(filename, type, mesh, faces, projection, config, &bounding_box))
         g_printerr("Failed to write faces.\n");
@@ -634,8 +638,9 @@ gboolean mesh_export_matrices_to_files(const gchar *filename_base, ExportFileTyp
     GList *faces_list = NULL;
     GList *mesh_list = NULL;
     MatrixMesh *mesh;
-    UtilRectangle bounding_box = { 0, 0, 0, 0 }, bb;
+    UtilRectangle bounding_box, bb;
     GList *tmpm, *tmpf;
+    gboolean bb_initialized = FALSE;
 
     /* first pass: generate all faces and determine bounding box */
     for (tmpm = matrices; tmpm != NULL; tmpm = g_list_next(tmpm)) {
@@ -647,10 +652,15 @@ gboolean mesh_export_matrices_to_files(const gchar *filename_base, ExportFileTyp
         faces_list = g_list_prepend(faces_list,
                 mesh_export_generate_faces(mesh, projection, &bb));
 
-        util_rectangle_bounds(&bounding_box, &bounding_box, &bb);
+        if (G_LIKELY(bb_initialized))
+            util_rectangle_bounds(&bounding_box, &bounding_box, &bb);
+        else
+            bounding_box = bb;
     }
     faces_list = g_list_reverse(faces_list);
     mesh_list = g_list_reverse(mesh_list);
+
+    g_print("bounding box: @(%f, %f) %f x %f\n", bounding_box.x, bounding_box.y, bounding_box.width, bounding_box.height);
 
     /* second pass: write files */
     for (tmpm = mesh_list, tmpf = faces_list, offset = 0;

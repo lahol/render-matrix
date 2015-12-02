@@ -42,7 +42,7 @@ void matrix_mesh_set_matrix(MatrixMesh *mesh, Matrix *matrix)
 
 void matrix_mesh_plane_face(MatrixMeshFace *face, double x, double y, double z, double d1, double d2, double alpha_channel)
 {
-    util_color_gradient_rgb(face->color_hue, face->color_rgba);
+    util_colors_gradient_rgb(face->color_hue, face->color_rgba);
     face->color_rgba[3] = alpha_channel;
 
     switch (face->plane) {
