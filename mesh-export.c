@@ -278,9 +278,39 @@ void mesh_render_colorbar_tikz(FILE *file, UtilRectangle *colorbar, ExportConfig
     }
 }
 
-void mesh_render_colorbar_cairo(cairo_t *cr, UtilRectangle *bounding_box, ExportConfig *config, double *range)
+void mesh_render_colorbar_cairo(cairo_t *cr, UtilRectangle *colorbar, ExportConfig *config, double *range)
 {
-    /*double image_width = (config && config->image_width > 0) ? config->image_width : 15;*/
+    cairo_pattern_t *gradient = cairo_pattern_create_linear(0.0, colorbar->y, 0.0, colorbar->y + colorbar->height);
+
+    guint8 j;
+    for (j = 0; j < 7; ++j) {
+        cairo_pattern_add_color_stop_rgb(gradient, (6.0 - j)/6.0,
+                util_colors_basic_table[j][0],
+                util_colors_basic_table[j][1],
+                util_colors_basic_table[j][2]);
+    }
+
+    cairo_rectangle(cr, colorbar->x, colorbar->y, colorbar->width, colorbar->height);
+
+    cairo_set_source(cr, gradient);
+    cairo_fill_preserve(cr);
+
+    cairo_set_source_rgb(cr, 0.6f, 0.6f, 0.6f);
+    cairo_stroke(cr);
+
+    /* upper */
+    cairo_move_to(cr, colorbar->x - 7.2/2.54, colorbar->y);
+    cairo_line_to(cr, colorbar->x + 4*7.2/2.54, colorbar->y);
+    cairo_stroke(cr);
+
+    /* lower */
+    cairo_move_to(cr, colorbar->x - 7.2/2.54, colorbar->y + colorbar->height);
+    cairo_line_to(cr, colorbar->x + 4*7.2/2.54, colorbar->y + colorbar->height);
+    cairo_stroke(cr);
+
+    /* FIXME: write text */
+
+    cairo_pattern_destroy(gradient);
 }
 
 void mesh_set_coordinates_tikz(FILE *file, double *projection, UtilRectangle *bounding_box, ExportConfig *config, double *range)
@@ -488,19 +518,28 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
     UtilRectangle colorbar;
     colorbar.width = 0.3;
 
-    colorbar_correction = ((config) ? fabs(config->colorbar_pos_x) : 1.0) + colorbar.width + 0.1;
 
     switch (type) {
         case ExportFileTypeSVG:
             /* size in points = 1/72 in = 2.54/72 cm */
             image_width *= 72/2.54;
-            scale = image_width / (bounding_box->width + colorbar_correction);
+
+            colorbar.width *= 72/2.54;
+            colorbar_correction = ((config) ? fabs(config->colorbar_pos_x) : 1.0) * 72/2.54 + colorbar.width + 7.2/2.54;
+
+            scale = (image_width - colorbar_correction) / bounding_box->width;
+
             surface = cairo_svg_surface_create(filename, image_width, bounding_box->height * scale);
             break;
         case ExportFileTypePDF:
             /* size in points = 1/72 in = 2.54/72 cm */
             image_width *= 72/2.54;
-            scale = image_width / (bounding_box->width + colorbar_correction);
+
+            colorbar.width *= 72/2.54;
+            colorbar_correction = ((config) ? fabs(config->colorbar_pos_x) : 1.0) * 72/2.54 + colorbar.width + 7.2/2.54;
+
+            scale = (image_width - colorbar_correction) / bounding_box->width;
+
             surface = cairo_pdf_surface_create(filename, image_width, bounding_box->height * scale);
             break;
         case ExportFileTypePNG:
@@ -509,6 +548,7 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
         case ExportFileTypeTikZ:
             /* image width in cm */
             /* colorbar correction is in image dimension */
+            colorbar_correction = ((config) ? fabs(config->colorbar_pos_x) : 1.0) + colorbar.width + 0.1;
             scale = (image_width - colorbar_correction) / bounding_box->width;
             break;
         default:
@@ -526,10 +566,20 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
         case ExportFileTypePDF:
         case ExportFileTypeSVG:
             cr = cairo_create(surface);
-            cairo_translate(cr, -bounding_box->x * scale, -bounding_box->y * scale);
+            if (config && config->colorbar_pos_x < 0)
+                cairo_translate(cr, -bounding_box->x * scale + colorbar_correction, -bounding_box->y * scale);
+            else
+                cairo_translate(cr, -bounding_box->x * scale, -bounding_box->y * scale);
+
+            colorbar.x = ((config) ? (config->colorbar_pos_x >= 0 ? bounding_box->width * scale + config->colorbar_pos_x * 72/2.54 :
+                    config->colorbar_pos_x * 72/2.54 - colorbar.width) : bounding_box->width * scale + 72/2.54) +
+                bounding_box->x * scale;
+            colorbar.y += bounding_box->y * scale;
+
+            fprintf(stderr, "img width: %f, colorbar.x: %f, cb width: %f\n", image_width, colorbar.x, colorbar.width);
 
             mesh_render_faces(cr, faces, scale);
-            mesh_render_colorbar_cairo(cr, bounding_box, config, mesh->unscaled_range);
+            mesh_render_colorbar_cairo(cr, &colorbar, config, mesh->unscaled_range);
 
             cairo_destroy(cr);
             cairo_surface_destroy(surface);
