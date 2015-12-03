@@ -6,6 +6,7 @@
 #include <cairo.h>
 #include <cairo-svg.h>
 #include <cairo-pdf.h>
+#include <pango/pangocairo.h>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -308,7 +309,39 @@ void mesh_render_colorbar_cairo(cairo_t *cr, UtilRectangle *colorbar, ExportConf
     cairo_line_to(cr, colorbar->x + 4*7.2/2.54, colorbar->y + colorbar->height);
     cairo_stroke(cr);
 
-    /* FIXME: write text */
+    PangoLayout *layout;
+    PangoFontDescription *desc;
+    PangoRectangle extents;
+    gchar buf[64];
+
+    layout = pango_cairo_create_layout(cr);
+    desc = pango_font_description_from_string("Times 5");
+    pango_layout_set_font_description(layout, desc);
+    pango_font_description_free(desc);
+
+    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+
+    sprintf(buf, "%.1f", range[0]);
+    pango_layout_set_markup(layout, buf, -1);
+    pango_layout_get_extents(layout, NULL, &extents); 
+
+    cairo_move_to(cr, colorbar->x + ((config && config->colorbar_pos_x < 0) ? 
+                  + 36.0/2.54 
+                : - 14.4/2.54 - (double)extents.width/(double)PANGO_SCALE),
+            colorbar->y + colorbar->height - 0.5 * extents.height / (double)PANGO_SCALE);
+    pango_cairo_update_layout(cr, layout);
+    pango_cairo_show_layout(cr, layout);
+
+    sprintf(buf, "%.1f", range[1]);
+    pango_layout_set_markup(layout, buf, -1);
+    pango_layout_get_extents(layout, NULL, &extents); 
+
+    cairo_move_to(cr, colorbar->x + ((config && config->colorbar_pos_x < 0) ?
+                  + 36.0/2.54
+                : - 14.4/2.54 - (double)extents.width/(double)PANGO_SCALE),
+            colorbar->y - 0.5 * extents.height / (double)PANGO_SCALE);
+    pango_cairo_update_layout(cr, layout);
+    pango_cairo_show_layout(cr, layout);
 
     cairo_pattern_destroy(gradient);
 }
