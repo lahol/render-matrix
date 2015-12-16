@@ -737,8 +737,10 @@ gboolean mesh_export_matrices_to_files(const gchar *filename_base, ExportFileTyp
 
         if (G_LIKELY(bb_initialized))
             util_rectangle_bounds(&bounding_box, &bounding_box, &bb);
-        else
+        else {
             bounding_box = bb;
+            bb_initialized = TRUE;
+        }
     }
     faces_list = g_list_reverse(faces_list);
     mesh_list = g_list_reverse(mesh_list);
