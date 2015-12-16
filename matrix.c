@@ -135,6 +135,7 @@ GList *matrix_read_from_file(int fd)
 {
     GScanner *scanner = g_scanner_new(NULL);
     scanner->config->cset_skip_characters = " \t";
+    scanner->config->int_2_float = 1;
     g_scanner_input_file(scanner, fd);
 
     GTokenType next_token_type;
@@ -174,8 +175,9 @@ GList *matrix_read_from_file(int fd)
                     g_printerr("column mismatch at line %u\n", scanner->line);
                 }
             }
-            else if (m->n_columns == 0)
-                m->n_columns = columns;
+            else if (m->n_columns == 0) {
+                    m->n_columns = columns;
+            }
             ++m->n_rows;
             columns = 0;
         }
@@ -186,6 +188,12 @@ GList *matrix_read_from_file(int fd)
              scanner->next_token != G_TOKEN_ERROR);
 
     g_scanner_destroy(scanner);
+
+    GList *llink = list;
+    if (llink && llink->data && ((Matrix *)llink->data)->n_columns == 0) {
+        list = g_list_remove_link(list, llink);
+        g_list_free_full(llink, (GDestroyNotify)matrix_free);
+    }
 
     return g_list_reverse(list);
 }
