@@ -1,5 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <glob.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
@@ -22,6 +26,8 @@ struct {
     GtkWidget *check_alternate_signs;
     GtkWidget *check_shift_signs;
     GtkWidget *check_log_scale;
+
+    GList *infiles;
 
     Matrix *display_matrix;
     struct {
@@ -299,6 +305,7 @@ void main_cleanup(void)
 {
     matrix_free(appdata.display_matrix);
     g_list_free_full(appdata.matrix_list.head, (GDestroyNotify)matrix_free);
+    g_list_free_full(appdata.infiles, g_free);
 
     graphics_cleanup(appdata.graphics_handle);
 }
@@ -326,17 +333,85 @@ static GOptionEntry _command_line_options[] = {
 gboolean main_parse_command_line(int *argc, char ***argv)
 {
     main_config_default();
-    GOptionContext *context = g_option_context_new(" – render histogram of matrix from stdin");
+    GOptionContext *context = g_option_context_new(" [files […]] – render histogram of matrix from stdin");
     g_option_context_add_main_entries(context, _command_line_options, "render-matrix");
     if (!g_option_context_parse(context, argc, argv, NULL)) {
         g_option_context_free(context);
         return FALSE;
     }
     g_option_context_free(context);
-/*  Read more arguments?
+/*  Read more arguments? */
+    /* Read glob style input files without interpretation. */
+    glob_t infiles;
+    int glob_flags = 0;
+    int i, j, rc;
+
     if (*argc > 1) {
-    }*/
+        for (i = 1; i < *argc; ++i) {
+            rc = glob((*argv)[i], glob_flags, NULL, &infiles);
+            if (rc == GLOB_ABORTED || rc == GLOB_NOSPACE) {
+                g_printerr("Globbing failed.\n");
+
+                globfree(&infiles);
+                return FALSE;
+            }
+            else if (rc == GLOB_NOMATCH) {
+                if (g_strcmp0((*argv)[i], "-") == 0) {
+                    appdata.infiles = g_list_prepend(appdata.infiles, g_strdup("-"));
+                    globfree(&infiles);
+                    continue;
+                }
+                else {
+                    g_print("Pattern `%s' matches no files.\n", (*argv)[i]);
+                }
+            }
+
+            if (infiles.gl_pathc) {
+                for (j = 0; j < infiles.gl_pathc; ++j) {
+                    appdata.infiles = g_list_prepend(appdata.infiles, g_strdup(infiles.gl_pathv[j]));
+                }
+            }
+
+            globfree(&infiles);
+        }
+
+    }
+
+    appdata.infiles = g_list_reverse(appdata.infiles);
+
     return TRUE;
+}
+
+GList *main_read_input_files(void)
+{
+    /* run through all input files (none or - -> STDIN_FILENO) and concatenate the lists
+     * read from the files. */
+    int fd;
+    GList *tmp;
+
+    if (appdata.infiles == NULL) {
+        fprintf(stderr, "No input files given. Reading from stdin.\n");
+        return matrix_read_from_file(STDIN_FILENO);
+    }
+
+    GList *matrices = NULL;
+    for (tmp = appdata.infiles; tmp; tmp = g_list_next(tmp)) {
+        if (g_strcmp0((gchar *)tmp->data, "-") == 0) {
+            matrices = g_list_concat(matrices, matrix_read_from_file(STDIN_FILENO));
+        }
+        else {
+            fd = open((gchar *)tmp->data, O_RDONLY);
+            if (fd < 0) {
+                fprintf(stderr, "Unable to open file `%s'. Skipping.\n", (gchar *)tmp->data);
+            }
+            else {
+                matrices = g_list_concat(matrices, matrix_read_from_file(fd));
+                close(fd);
+            }
+        }
+    }
+
+    return matrices;
 }
 
 int main(int argc, char **argv)
@@ -348,7 +423,7 @@ int main(int argc, char **argv)
     if (!main_parse_command_line(&argc, &argv))
         return 1;
 
-    appdata.matrix_list.head = matrix_read_from_file(STDIN_FILENO);
+    appdata.matrix_list.head = main_read_input_files();
     appdata.matrix_list.current = appdata.matrix_list.head;
     appdata.matrix_list.tail = g_list_last(appdata.matrix_list.head);
     appdata.display_matrix = matrix_new();
