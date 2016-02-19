@@ -15,6 +15,7 @@ typedef struct {
     ExportFileType type;
     gboolean remove_hidden;
     gboolean standalone;
+    gboolean show_colorbar;
     double image_width;
     double colorbar_pos_x;
     double alpha_channel;

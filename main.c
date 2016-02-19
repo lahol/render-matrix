@@ -55,6 +55,7 @@ struct {
     gboolean log_scale;
     gboolean optimize;
     gboolean export_standalone;
+    gboolean export_colorbar;
 } config;
 
 void main_config_default(void)
@@ -75,6 +76,7 @@ void main_config_default(void)
     config.log_scale = FALSE;
     config.optimize = FALSE;
     config.export_standalone = FALSE;
+    config.export_colorbar = TRUE;
 }
 
 static void camera_value_changed(GtkSpinButton *button, gpointer userdata)
@@ -137,6 +139,7 @@ void main_save_matrix_to_file(const gchar *filename)
     expconfig.standalone = config.export_standalone;
     expconfig.colorbar_pos_x = config.colorbar_pos_x;
     expconfig.alpha_channel = config.alpha_channel;
+    expconfig.show_colorbar = config.export_colorbar;
 
     switch (type) {
         case ExportFileTypePNG:
@@ -327,6 +330,8 @@ static GOptionEntry _command_line_options[] = {
     { "standalone", 's', 0, G_OPTION_ARG_NONE, &config.export_standalone, "Produce standalone file", NULL },
     { "width", 'w', 0, G_OPTION_ARG_DOUBLE, &config.export_width, "Width of TikZ picture", NULL },
     { "colorbar-x", 0, 0, G_OPTION_ARG_DOUBLE, &config.colorbar_pos_x, "Relative position of colorbar", "offset" },
+    { "colorbar", 0, 0, G_OPTION_ARG_NONE, &config.export_colorbar, "Print a colorbar in export", NULL },
+    { "no-colorbar", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &config.export_colorbar, "Do not print colorbar", NULL },
     { NULL }
 };
 
