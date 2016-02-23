@@ -297,3 +297,13 @@ void matrix_log_scale(Matrix *matrix)
             matrix->chunks[iter.chunk][iter.offset] = - log( - matrix->chunks[iter.chunk][iter.offset] + 1.0f);
     }
 }
+
+void matrix_set_absolute(Matrix *matrix)
+{
+    MatrixIter iter;
+
+    for (matrix_get_iter(matrix, &iter, 0, 0); matrix_iter_is_valid(matrix, &iter); matrix_iter_next(matrix, &iter)) {
+        matrix->chunks[iter.chunk][iter.offset] = fabs(matrix->chunks[iter.chunk][iter.offset]);
+    }
+}
+

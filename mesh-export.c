@@ -739,11 +739,25 @@ gboolean mesh_export_matrices_to_files(const gchar *filename_base, ExportFileTyp
     GList *tmpm, *tmpf;
     gboolean bb_initialized = FALSE;
 
+    Matrix *work = matrix_new();
+
     /* first pass: generate all faces and determine bounding box */
     for (tmpm = matrices; tmpm != NULL; tmpm = g_list_next(tmpm)) {
         mesh = matrix_mesh_new();
         matrix_mesh_set_alpha_channel(mesh, config->alpha_channel);
-        matrix_mesh_set_matrix(mesh, (Matrix *)tmpm->data);
+
+        /* modify work matrix */
+        matrix_copy(work, (Matrix *)tmpm->data);
+        if (config->log_scale)
+            matrix_log_scale(work);
+        if (config->permutate_entries)
+            matrix_permutate_matrix(work);
+        if (config->alternate_signs)
+            matrix_alternate_signs(work, config->shift_signs);
+        if (config->absolute_values)
+            matrix_set_absolute(work);
+
+        matrix_mesh_set_matrix(mesh, work);
         mesh_list = g_list_prepend(mesh_list, mesh);
 
         faces_list = g_list_prepend(faces_list,
@@ -756,6 +770,9 @@ gboolean mesh_export_matrices_to_files(const gchar *filename_base, ExportFileTyp
             bb_initialized = TRUE;
         }
     }
+
+    matrix_free(work);
+
     faces_list = g_list_reverse(faces_list);
     mesh_list = g_list_reverse(mesh_list);
 

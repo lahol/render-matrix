@@ -58,6 +58,7 @@ struct {
     gboolean export_standalone;
     gboolean export_colorbar;
     gboolean grayscale;
+    gboolean absolute_values;
 } config;
 
 void main_config_default(void)
@@ -79,6 +80,8 @@ void main_config_default(void)
     config.optimize = FALSE;
     config.export_standalone = FALSE;
     config.export_colorbar = TRUE;
+    config.grayscale = FALSE;
+    config.absolute_values = FALSE;
 }
 
 static void camera_value_changed(GtkSpinButton *button, gpointer userdata)
@@ -103,6 +106,8 @@ void main_update_display_matrix(void)
         matrix_permutate_matrix(appdata.display_matrix);
     if (config.alternate_signs)
         matrix_alternate_signs(appdata.display_matrix, config.shift_signs);
+    if (config.absolute_values)
+        matrix_set_absolute(appdata.display_matrix);
 }
 
 static void matrix_properties_toggled(GtkToggleButton *button, gpointer userdata)
@@ -142,6 +147,11 @@ void main_save_matrix_to_file(const gchar *filename)
     expconfig.colorbar_pos_x = config.colorbar_pos_x;
     expconfig.alpha_channel = config.alpha_channel;
     expconfig.show_colorbar = config.export_colorbar;
+    expconfig.permutate_entries = config.permutate_entries;
+    expconfig.alternate_signs = config.alternate_signs;
+    expconfig.shift_signs = config.shift_signs;
+    expconfig.log_scale = config.log_scale;
+    expconfig.absolute_values = config.absolute_values;
 
     switch (type) {
         case ExportFileTypePNG:
@@ -324,6 +334,7 @@ static GOptionEntry _command_line_options[] = {
     { "permutate-entries", 'P', 0, G_OPTION_ARG_NONE, &config.permutate_entries, "Permutate entries", NULL },
     { "reorder-entries", 'R', 0, G_OPTION_ARG_NONE, &config.permutate_entries, "same as --permutate-entries", NULL },
     { "alternate-signs", 'A', 0, G_OPTION_ARG_NONE, &config.alternate_signs, "Overlay matrix with alternating signs", NULL },
+    { "absolute-values", 0, 0, G_OPTION_ARG_NONE, &config.absolute_values, "Only show magnitude of entries", NULL },
     { "shift-signs", 'S', 0, G_OPTION_ARG_NONE, &config.shift_signs, "Shift signs (only with --alternate-signs)", NULL },
     { "log-scale", 'L', 0, G_OPTION_ARG_NONE, &config.log_scale, "Use log-scale, i.e. sgn(value) * log(1+|value|)", NULL },
     { "output", 'o', 0, G_OPTION_ARG_FILENAME, &config.output_filename, "Output filename", "Filename" },

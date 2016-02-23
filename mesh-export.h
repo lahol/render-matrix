@@ -20,6 +20,12 @@ typedef struct {
     double image_width;
     double colorbar_pos_x;
     double alpha_channel;
+
+    gboolean permutate_entries;
+    gboolean alternate_signs;
+    gboolean shift_signs;
+    gboolean log_scale;
+    gboolean absolute_values;
 } ExportConfig;
 
 ExportFileType mesh_export_get_type_from_filename(const gchar *filename);
