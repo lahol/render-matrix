@@ -247,17 +247,19 @@ void _mesh_render_faces_tikz_define_color(guint32 key, double *value, FILE *file
 void mesh_render_colorbar_tikz(FILE *file, UtilRectangle *colorbar, ExportConfig *config, double *range)
 {
     guint8 j;
-    for (j = 0; j < 7; ++j) {
+    unsigned int color_count = 0;
+    double *color_table = util_colors_get_basic_table(&color_count);
+    for (j = 0; j <= color_count; ++j) {
         fprintf(file, "\t\\definecolor{colorbar%d}{rgb}{%f,%f,%f}\n",
-                j, util_colors_basic_table[j][0], util_colors_basic_table[j][1], util_colors_basic_table[j][2]);
+                j, color_table[j * 3], color_table[j * 3 + 1], color_table[j * 3 + 2]);
     }
 
     /* let rectangles slightly overlap to overcome rounding errors */
-    for (j = 0; j < 6; ++j) {
+    for (j = 0; j < color_count; ++j) {
         fprintf(file, "\t\\shade[bottom color=colorbar%d,top color=colorbar%d,draw=none] (%f,%f) rectangle (%f,%f);\n",
                 j, j+1,
-                colorbar->x, colorbar->y + j * (colorbar->height / 6) - 0.01,
-                colorbar->x + colorbar->width, colorbar->y + (j+1) * (colorbar->height / 6) + 0.01);        
+                colorbar->x, colorbar->y + j * (colorbar->height / color_count) - 0.01,
+                colorbar->x + colorbar->width, colorbar->y + (j+1) * (colorbar->height / color_count) + 0.01);        
     }
 
     fprintf(file, "\t\\draw[color=black!40] (%f,%f) rectangle (%f,%f);\n",
@@ -284,11 +286,13 @@ void mesh_render_colorbar_cairo(cairo_t *cr, UtilRectangle *colorbar, ExportConf
     cairo_pattern_t *gradient = cairo_pattern_create_linear(0.0, colorbar->y, 0.0, colorbar->y + colorbar->height);
 
     guint8 j;
-    for (j = 0; j < 7; ++j) {
+    unsigned int color_count = 0;
+    double *color_table = util_colors_get_basic_table(&color_count);
+    for (j = 0; j <= color_count; ++j) {
         cairo_pattern_add_color_stop_rgb(gradient, (6.0 - j)/6.0,
-                util_colors_basic_table[j][0],
-                util_colors_basic_table[j][1],
-                util_colors_basic_table[j][2]);
+                color_table[j * 3],
+                color_table[j * 3 + 1],
+                color_table[j * 3 + 2]);
     }
 
     cairo_rectangle(cr, colorbar->x, colorbar->y, colorbar->width, colorbar->height);

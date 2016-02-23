@@ -16,6 +16,7 @@
 #include "matrix-mesh.h"
 #include "mesh-export.h"
 #include "util-projection.h"
+#include "util-colors.h"
 
 struct {
     GtkWidget *glwidget;
@@ -56,6 +57,7 @@ struct {
     gboolean optimize;
     gboolean export_standalone;
     gboolean export_colorbar;
+    gboolean grayscale;
 } config;
 
 void main_config_default(void)
@@ -332,6 +334,7 @@ static GOptionEntry _command_line_options[] = {
     { "colorbar-x", 0, 0, G_OPTION_ARG_DOUBLE, &config.colorbar_pos_x, "Relative position of colorbar", "offset" },
     { "colorbar", 0, 0, G_OPTION_ARG_NONE, &config.export_colorbar, "Print a colorbar in export", NULL },
     { "no-colorbar", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &config.export_colorbar, "Do not print colorbar", NULL },
+    { "grayscale", 0, 0, G_OPTION_ARG_NONE, &config.grayscale, "Use grayscale", NULL },
     { NULL }
 };
 
@@ -427,6 +430,9 @@ int main(int argc, char **argv)
 
     if (!main_parse_command_line(&argc, &argv))
         return 1;
+
+    if (config.grayscale)
+        util_colors_set_grayscale(1);
 
     appdata.matrix_list.head = main_read_input_files();
     appdata.matrix_list.current = appdata.matrix_list.head;
