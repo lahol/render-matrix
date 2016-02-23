@@ -24,7 +24,7 @@ double util_colors_basic_table_grayscale[] = {
 
 double *util_colors_basic_table = util_colors_basic_table_color;
 
-#define UTIL_COLORS_COUNT (6)
+#define UTIL_COLORS_COUNT (5)
 unsigned int color_count = UTIL_COLORS_COUNT;
 
 double *util_colors_get_basic_table(unsigned int *count)
@@ -38,7 +38,7 @@ void util_colors_set_grayscale(int use_grayscale)
 {
     if (use_grayscale) {
         util_colors_basic_table = util_colors_basic_table_grayscale;
-        color_count = 6;
+        color_count = 5;
     }
     else {
         util_colors_basic_table = util_colors_basic_table_color;
@@ -53,9 +53,9 @@ void util_colors_set_grayscale(int use_grayscale)
 void util_colors_gradient_rgb(double hue, double *rgb)
 {
     if (hue >= 1.0) {
-        rgb[0] = util_colors_basic_table[UTIL_COLORS_COUNT * 3];
-        rgb[1] = util_colors_basic_table[UTIL_COLORS_COUNT * 3 + 1];
-        rgb[2] = util_colors_basic_table[UTIL_COLORS_COUNT * 3 + 2];
+        rgb[0] = util_colors_basic_table[color_count * 3];
+        rgb[1] = util_colors_basic_table[color_count * 3 + 1];
+        rgb[2] = util_colors_basic_table[color_count * 3 + 2];
         return;
     }
     if (hue <= 0.0) {
@@ -65,8 +65,8 @@ void util_colors_gradient_rgb(double hue, double *rgb)
         return;
     }
 
-    int index = (int)((UTIL_COLORS_COUNT) * hue);       /* floor */
-    double lambda = ((UTIL_COLORS_COUNT) * hue - index); /* frac */
+    int index = (int)((color_count) * hue);       /* floor */
+    double lambda = ((color_count) * hue - index); /* frac */
 
     rgb[0] = (1.0 - lambda) * util_colors_basic_table[index * 3 + 0] + lambda * util_colors_basic_table[index * 3 + 3];
     rgb[1] = (1.0 - lambda) * util_colors_basic_table[index * 3 + 1] + lambda * util_colors_basic_table[index * 3 + 4];
