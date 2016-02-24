@@ -48,6 +48,7 @@ struct {
     double alpha_channel;
     double export_width;
     double colorbar_pos_x; /* >= 0 -> bounding_box->width + pos, <0: left of plot */
+    double z_epsilon;
 
     gchar *output_filename;
     gboolean permutate_entries;
@@ -72,6 +73,7 @@ void main_config_default(void)
     config.alpha_channel = 1.0;
     config.export_width = 15.0;
     config.colorbar_pos_x = 1.0;
+    config.z_epsilon = -1.0;
 
     config.permutate_entries = FALSE;
     config.alternate_signs = FALSE;
@@ -346,6 +348,7 @@ static GOptionEntry _command_line_options[] = {
     { "colorbar", 0, 0, G_OPTION_ARG_NONE, &config.export_colorbar, "Print a colorbar in export", NULL },
     { "no-colorbar", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &config.export_colorbar, "Do not print colorbar", NULL },
     { "grayscale", 0, 0, G_OPTION_ARG_NONE, &config.grayscale, "Use grayscale", NULL },
+    { "z-epsilon", 'z', 0, G_OPTION_ARG_DOUBLE, &config.z_epsilon, "z threshold under which faces are not drawn", NULL },
     { NULL }
 };
 
@@ -444,6 +447,8 @@ int main(int argc, char **argv)
 
     if (config.grayscale)
         util_colors_set_grayscale(1);
+
+    matrix_mesh_set_z_epsilon(config.z_epsilon);
 
     appdata.matrix_list.head = main_read_input_files();
     appdata.matrix_list.current = appdata.matrix_list.head;

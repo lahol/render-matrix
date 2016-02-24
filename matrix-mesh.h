@@ -45,4 +45,7 @@ void matrix_mesh_free(MatrixMesh *mesh);
 gboolean matrix_mesh_iter_next(MatrixMesh *mesh, MatrixMeshIter *iter);
 gboolean matrix_mesh_iter_is_valid(MatrixMesh *mesh, MatrixMeshIter *iter);
 MatrixMeshFace *matrix_mesh_append_face(MatrixMesh *mesh, MatrixMeshIter *iter);
+void matrix_mesh_remove_last_face(MatrixMesh *mesh);
+
+void matrix_mesh_set_z_epsilon(double eps);
 
