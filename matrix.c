@@ -307,3 +307,14 @@ void matrix_set_absolute(Matrix *matrix)
     }
 }
 
+void matrix_set_signum(Matrix *matrix)
+{
+    MatrixIter iter;
+
+    for (matrix_get_iter(matrix, &iter, 0, 0); matrix_iter_is_valid(matrix, &iter); matrix_iter_next(matrix, &iter)) {
+        matrix->chunks[iter.chunk][iter.offset] =
+            matrix->chunks[iter.chunk][iter.offset] > 0 ? 1.0 :
+             (matrix->chunks[iter.chunk][iter.offset] < 0 ? -1.0 : 0.0);
+    }
+}
+

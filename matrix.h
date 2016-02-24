@@ -37,3 +37,4 @@ void matrix_permutate_matrix(Matrix *matrix);
 void matrix_alternate_signs(Matrix *matrix, gboolean do_shift);
 void matrix_log_scale(Matrix *matrix);
 void matrix_set_absolute(Matrix *matrix);
+void matrix_set_signum(Matrix *matrix);

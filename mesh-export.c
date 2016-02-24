@@ -756,6 +756,8 @@ gboolean mesh_export_matrices_to_files(const gchar *filename_base, ExportFileTyp
             matrix_alternate_signs(work, config->shift_signs);
         if (config->absolute_values)
             matrix_set_absolute(work);
+        if (config->show_signum)
+            matrix_set_signum(work);
 
         matrix_mesh_set_matrix(mesh, work);
         mesh_list = g_list_prepend(mesh_list, mesh);

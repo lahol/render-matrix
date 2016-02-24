@@ -26,6 +26,7 @@ typedef struct {
     gboolean shift_signs;
     gboolean log_scale;
     gboolean absolute_values;
+    gboolean show_signum;
 } ExportConfig;
 
 ExportFileType mesh_export_get_type_from_filename(const gchar *filename);

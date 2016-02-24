@@ -60,6 +60,7 @@ struct {
     gboolean export_colorbar;
     gboolean grayscale;
     gboolean absolute_values;
+    gboolean show_signum;
 } config;
 
 void main_config_default(void)
@@ -84,6 +85,7 @@ void main_config_default(void)
     config.export_colorbar = TRUE;
     config.grayscale = FALSE;
     config.absolute_values = FALSE;
+    config.show_signum = FALSE;
 }
 
 static void camera_value_changed(GtkSpinButton *button, gpointer userdata)
@@ -110,6 +112,8 @@ void main_update_display_matrix(void)
         matrix_alternate_signs(appdata.display_matrix, config.shift_signs);
     if (config.absolute_values)
         matrix_set_absolute(appdata.display_matrix);
+    if (config.show_signum)
+        matrix_set_signum(appdata.display_matrix);
 }
 
 static void matrix_properties_toggled(GtkToggleButton *button, gpointer userdata)
@@ -154,6 +158,7 @@ void main_save_matrix_to_file(const gchar *filename)
     expconfig.shift_signs = config.shift_signs;
     expconfig.log_scale = config.log_scale;
     expconfig.absolute_values = config.absolute_values;
+    expconfig.show_signum = config.show_signum;
 
     switch (type) {
         case ExportFileTypePNG:
@@ -337,6 +342,7 @@ static GOptionEntry _command_line_options[] = {
     { "reorder-entries", 'R', 0, G_OPTION_ARG_NONE, &config.permutate_entries, "same as --permutate-entries", NULL },
     { "alternate-signs", 'A', 0, G_OPTION_ARG_NONE, &config.alternate_signs, "Overlay matrix with alternating signs", NULL },
     { "absolute-values", 0, 0, G_OPTION_ARG_NONE, &config.absolute_values, "Only show magnitude of entries", NULL },
+    { "show-signum", 0, 0, G_OPTION_ARG_NONE, &config.show_signum, "Only show sign of entries", NULL },
     { "shift-signs", 'S', 0, G_OPTION_ARG_NONE, &config.shift_signs, "Shift signs (only with --alternate-signs)", NULL },
     { "log-scale", 'L', 0, G_OPTION_ARG_NONE, &config.log_scale, "Use log-scale, i.e. sgn(value) * log(1+|value|)", NULL },
     { "output", 'o', 0, G_OPTION_ARG_FILENAME, &config.output_filename, "Output filename", "Filename" },
