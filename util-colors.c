@@ -12,6 +12,16 @@ double util_colors_basic_table_color[] = {
     0.0, 0.0, 0.0, /* currently only for index, although this should be caught in the next if clause */
 };
 
+double util_colors_basic_table_light_to_dark[] = {
+    1.0, 1.0, 1.0,
+    0.0, 0.0, 1.0,
+    0.0, 1.0, 1.0,
+    0.0, 1.0, 0.0,
+    1.0, 1.0, 0.0,
+    1.0, 0.0, 0.0,
+    0.0, 0.0, 0.0,
+};
+
 double util_colors_basic_table_grayscale[] = {
     1.0, 1.0, 1.0,
     0.8, 0.8, 0.8,

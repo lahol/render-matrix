@@ -47,6 +47,7 @@ struct {
     double tilt;
     double alpha_channel;
     double export_width;
+    double export_height;
     double colorbar_pos_x; /* >= 0 -> bounding_box->width + pos, <0: left of plot */
     double z_epsilon;
 
@@ -73,6 +74,7 @@ void main_config_default(void)
     config.tilt = 0.0;
     config.alpha_channel = 1.0;
     config.export_width = 15.0;
+    config.export_height = -1.0;
     config.colorbar_pos_x = 1.0;
     config.z_epsilon = -1.0;
 
@@ -149,6 +151,7 @@ void main_save_matrix_to_file(const gchar *filename)
     expconfig.type = type;
     expconfig.remove_hidden = config.optimize;
     expconfig.image_width = config.export_width;
+    expconfig.image_height = config.export_height;
     expconfig.standalone = config.export_standalone;
     expconfig.colorbar_pos_x = config.colorbar_pos_x;
     expconfig.alpha_channel = config.alpha_channel;
@@ -350,6 +353,7 @@ static GOptionEntry _command_line_options[] = {
     { "alpha", 'T', 0, G_OPTION_ARG_DOUBLE, &config.alpha_channel, "Alpha channel (between 0.0 and 1.0)", NULL },
     { "standalone", 's', 0, G_OPTION_ARG_NONE, &config.export_standalone, "Produce standalone file", NULL },
     { "width", 'w', 0, G_OPTION_ARG_DOUBLE, &config.export_width, "Width of TikZ picture", NULL },
+    { "height", 'h', 0, G_OPTION_ARG_DOUBLE, &config.export_height, "Height of bounding box", NULL },
     { "colorbar-x", 0, 0, G_OPTION_ARG_DOUBLE, &config.colorbar_pos_x, "Relative position of colorbar", "offset" },
     { "colorbar", 0, 0, G_OPTION_ARG_NONE, &config.export_colorbar, "Print a colorbar in export", NULL },
     { "no-colorbar", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &config.export_colorbar, "Do not print colorbar", NULL },

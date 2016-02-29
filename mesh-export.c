@@ -555,6 +555,7 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
     UtilRectangle colorbar;
     colorbar.width = 0.3;
 
+    UtilRectangle bb = *bounding_box;
 
     switch (type) {
         case ExportFileTypeSVG:
@@ -566,9 +567,9 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
                 colorbar_correction = ((config) ? fabs(config->colorbar_pos_x) : 1.0) * 72/2.54 + colorbar.width + 7.2/2.54;
             }
 
-            scale = (image_width - colorbar_correction) / bounding_box->width;
+            scale = (image_width - colorbar_correction) / bb.width;
 
-            surface = cairo_svg_surface_create(filename, image_width, bounding_box->height * scale);
+            surface = cairo_svg_surface_create(filename, image_width, bb.height * scale);
             break;
         case ExportFileTypePDF:
             /* size in points = 1/72 in = 2.54/72 cm */
@@ -579,9 +580,9 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
                 colorbar_correction = ((config) ? fabs(config->colorbar_pos_x) : 1.0) * 72/2.54 + colorbar.width + 7.2/2.54;
             }
 
-            scale = (image_width - colorbar_correction) / bounding_box->width;
+            scale = (image_width - colorbar_correction) / bb.width;
 
-            surface = cairo_pdf_surface_create(filename, image_width, bounding_box->height * scale);
+            surface = cairo_pdf_surface_create(filename, image_width, bb.height * scale);
             break;
         case ExportFileTypePNG:
             /* TODO: image surface, get data, write to png */
@@ -591,15 +592,19 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
             /* colorbar correction is in image dimension */
             if (!config || config->show_colorbar)
                 colorbar_correction = ((config) ? fabs(config->colorbar_pos_x) : 1.0) + colorbar.width + 0.1;
-            scale = (image_width - colorbar_correction) / bounding_box->width;
+            scale = (image_width - colorbar_correction) / bb.width;
+            if (config && config->image_height > 0 && bb.height * scale < config->image_height) {
+                bb.y -= (config->image_height/scale - bb.height) * 0.5;
+                bb.height = config->image_height/scale;
+            }
             break;
         default:
             return FALSE;
     }
 
-    colorbar.x = (config) ? (config->colorbar_pos_x >= 0 ? (bounding_box->width) * scale + config->colorbar_pos_x : config->colorbar_pos_x - colorbar.width) : (bounding_box->width) * scale + 1.0;
-    colorbar.height = bounding_box->height * scale * 0.8;
-    colorbar.y = 0.5 * (bounding_box->height * scale - colorbar.height);
+    colorbar.x = (config) ? (config->colorbar_pos_x >= 0 ? (bb.width) * scale + config->colorbar_pos_x : config->colorbar_pos_x - colorbar.width) : (bb.width) * scale + 1.0;
+    colorbar.height = bb.height * scale * 0.8;
+    colorbar.y = 0.5 * (bb.height * scale - colorbar.height);
 
     if (config && config->remove_hidden)
         faces = mesh_remove_hidden_faces(faces);
@@ -609,14 +614,14 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
         case ExportFileTypeSVG:
             cr = cairo_create(surface);
             if (config && config->colorbar_pos_x < 0)
-                cairo_translate(cr, -bounding_box->x * scale + colorbar_correction, -bounding_box->y * scale);
+                cairo_translate(cr, -bb.x * scale + colorbar_correction, -bb.y * scale);
             else
-                cairo_translate(cr, -bounding_box->x * scale, -bounding_box->y * scale);
+                cairo_translate(cr, -bb.x * scale, -bb.y * scale);
 
-            colorbar.x = ((config) ? (config->colorbar_pos_x >= 0 ? bounding_box->width * scale + config->colorbar_pos_x * 72/2.54 :
-                    config->colorbar_pos_x * 72/2.54 - colorbar.width) : bounding_box->width * scale + 72/2.54) +
-                bounding_box->x * scale;
-            colorbar.y += bounding_box->y * scale;
+            colorbar.x = ((config) ? (config->colorbar_pos_x >= 0 ? bb.width * scale + config->colorbar_pos_x * 72/2.54 :
+                    config->colorbar_pos_x * 72/2.54 - colorbar.width) : bb.width * scale + 72/2.54) +
+                bb.x * scale;
+            colorbar.y += bb.y * scale;
 
             fprintf(stderr, "img width: %f, colorbar.x: %f, cb width: %f\n", image_width, colorbar.x, colorbar.width);
 
@@ -637,8 +642,8 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
             if (config && config->standalone)
                 fprintf(file, "\\documentclass{standalone}\n\\usepackage{tikz}\n\n\\begin{document}\n\\begin{tikzpicture}\n");
 
-            mesh_set_coordinates_tikz(file, projection, bounding_box, config, mesh->zrange);
-            mesh_render_faces_tikz(file, faces, bounding_box, scale, config);
+            mesh_set_coordinates_tikz(file, projection, &bb, config, mesh->zrange);
+            mesh_render_faces_tikz(file, faces, &bb, scale, config);
 
             if (!config || config->show_colorbar)
                 mesh_render_colorbar_tikz(file, &colorbar, config, mesh->unscaled_range);
@@ -647,7 +652,7 @@ gboolean _mesh_export_write_faces(const gchar *filename, ExportFileType type, Ma
              *        and take care of labels (maybe on right side?) */
             fprintf(file, "\\path[use as bounding box] (%f,0) rectangle ++(%f,%f);\n",
                     (config && config->colorbar_pos_x < 0) ? -colorbar_correction: 0,
-                    bounding_box->width * scale + colorbar_correction, bounding_box->height * scale);
+                    bb.width * scale + colorbar_correction, bb.height * scale);
 
             if (config && config->standalone)
                 fprintf(file, "\\end{tikzpicture}\n\\end{document}\n");

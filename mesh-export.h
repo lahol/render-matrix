@@ -18,6 +18,7 @@ typedef struct {
     gboolean show_colorbar;
     gboolean grayscale;
     double image_width;
+    double image_height;
     double colorbar_pos_x;
     double alpha_channel;
 
